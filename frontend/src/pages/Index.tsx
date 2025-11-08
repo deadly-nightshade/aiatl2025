@@ -1,125 +1,43 @@
-import { useState } from "react";
-import { FileUpload } from "@/components/FileUpload";
-import { ChatInput } from "@/components/ChatInput";
-import { ComplianceReport } from "@/components/ComplianceReport";
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { AIResponseInput } from "@/components/AIResponseInput";
-import { toast } from "@/hooks/use-toast";
+import { ComplianceReport } from "@/components/ComplianceReport";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useBotFeed } from "@/hooks/use-bot-feed";
+import { toast } from "@/hooks/use-toast";
 
 export default function Index() {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [recheckingId, setRecheckingId] = useState<string | null>(null);
-  const [reportData, setReportData] = useState<{
-    verified: any[];
-    warnings: any[];
-    citations: any[];
-  }>({
-    verified: [],
-    warnings: [],
-    citations: [],
-  });
-  const [aiResponses, setAiResponses] = useState<any[]>([
-    {
-      id: "1",
-      content: "Based on the HIPAA Security Rule, healthcare providers must implement physical, administrative, and technical safeguards to protect electronic protected health information (ePHI). This includes access controls, encryption, and audit logs.",
-      timestamp: new Date(),
-      status: "pending",
-      confidence: 85,
-    },
-    {
-      id: "2",
-      content: "The 21st Century Cures Act requires healthcare organizations to implement measures that prevent information blocking and ensure patients have access to their electronic health information without delay.",
-      timestamp: new Date(),
-      status: "verified",
-      confidence: 92,
-    },
-  ]);
+  const { responses, reports, isPolling, error, refresh } = useBotFeed();
+  const [selectedResponseId, setSelectedResponseId] = useState<string | null>(null);
 
-  const handleFilesUploaded = async (files: File[]) => {
-    // TODO: Integrate with your backend API
-    toast({
-      title: "Files uploaded",
-      description: `${files.length} file(s) uploaded successfully`,
-    });
-    console.log("Files to upload:", files);
-  };
+  useEffect(() => {
+    if (responses.length === 0) {
+      return;
+    }
+    // Auto-select the latest response when none is chosen.
+    if (!selectedResponseId) {
+      setSelectedResponseId(responses[responses.length - 1].id);
+    }
+  }, [responses, selectedResponseId]);
 
-  const handleRecheckResponse = async (responseId: string) => {
-    setRecheckingId(responseId);
-    
-    // TODO: Integrate with your backend API
-    console.log("Rechecking response:", responseId);
-
-    setTimeout(() => {
-      setAiResponses((prev) =>
-        prev.map((response) =>
-          response.id === responseId
-            ? { ...response, status: "verified", confidence: 95 }
-            : response
-        )
-      );
-      
+  useEffect(() => {
+    if (error) {
       toast({
-        title: "Response rechecked",
-        description: "AI response has been verified successfully",
+        title: "Bot feed error",
+        description: error,
       });
-      
-      setRecheckingId(null);
-    }, 1500);
-  };
+    }
+  }, [error]);
 
-  const handleSendMessage = async (message: string) => {
-    setIsProcessing(true);
-    
-    // TODO: Integrate with your backend API
-    console.log("Query message:", message);
+  const activeReport = useMemo(
+    () => (selectedResponseId ? reports[selectedResponseId] ?? null : null),
+    [reports, selectedResponseId],
+  );
 
-    // Simulate API call with mock data
-    setTimeout(() => {
-      setReportData({
-        verified: [
-          {
-            id: "1",
-            text: "HIPAA privacy rule compliance verified for patient data handling procedures.",
-            confidence: 95,
-            source: "Section 2.3.1",
-          },
-          {
-            id: "2",
-            text: "Electronic health record retention policies meet federal requirements.",
-            confidence: 92,
-            source: "Section 4.1",
-          },
-        ],
-        warnings: [
-          {
-            id: "3",
-            text: "Incomplete documentation for breach notification procedures. Review recommended.",
-            source: "Section 5.2.4",
-          },
-        ],
-        citations: [
-          {
-            id: "4",
-            text: "45 CFR § 164.308 - Administrative safeguards",
-            source: "https://www.hhs.gov/hipaa",
-          },
-          {
-            id: "5",
-            text: "21 CFR Part 11 - Electronic records; electronic signatures",
-            source: "https://www.fda.gov/regulatory-information",
-          },
-        ],
-      });
-      
-      toast({
-        title: "Analysis complete",
-        description: "Compliance report generated successfully",
-      });
-      
-      setIsProcessing(false);
-    }, 2000);
-  };
+  const selectedResponse = useMemo(
+    () => responses.find((response) => response.id === selectedResponseId) ?? null,
+    [responses, selectedResponseId],
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-info/10 transition-colors">
@@ -135,48 +53,51 @@ export default function Index() {
             <div>
               <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                 <span className="h-2 w-2 rounded-full bg-primary" />
-                Powered by AI
+                Bot Middleware Monitor
               </span>
               <h1 className="mt-4 text-4xl font-bold leading-tight text-foreground md:text-5xl lg:text-6xl">
-                Healthcare Compliance Copilot
+                Compliance Stream for GPT-5
               </h1>
               <p className="mt-3 max-w-xl text-base text-muted-foreground md:text-lg">
-                Upload evidence, interrogate responses, and track regulatory coverage with a single streamlined assistant.
+                Observe automated outputs, track verification status, and review compliance findings in real time. No
+                input required—just monitor the flow.
               </p>
             </div>
           </div>
 
+  audience: mention autop reload? Add refresh button area with theme toggle:
+
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <div className="rounded-2xl border border-border/60 bg-background/80 px-5 py-4 text-sm shadow-sm backdrop-blur">
-              <p className="font-medium text-foreground">Realtime Compliance Pulse</p>
+              <p className="font-medium text-foreground">Status</p>
               <p className="text-xs text-muted-foreground">
-                Stay aligned with HIPAA, 21st Century Cures Act, and beyond
+                {isPolling ? "Polling bot feed for updates" : "Idle"}
               </p>
             </div>
-            <ThemeToggle />
+            <div className="flex gap-3">
+              <Button variant="outline" size="sm" onClick={refresh} disabled={isPolling} className="rounded-full px-4">
+                Refresh now
+              </Button>
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Left Column */}
           <div className="space-y-6">
-            <FileUpload onFilesUploaded={handleFilesUploaded} />
-            <ChatInput onSend={handleSendMessage} isLoading={isProcessing} />
             <AIResponseInput
-              responses={aiResponses}
-              onRecheck={handleRecheckResponse}
-              recheckingId={recheckingId}
+              responses={responses}
+              selectedId={selectedResponseId}
+              onSelect={setSelectedResponseId}
+              isPolling={isPolling}
+              error={error}
             />
           </div>
 
-          {/* Right Column */}
+  maybe add history log detail? The left column will just have AIResponseInput; fine.
+
           <div className="lg:sticky lg:top-8 lg:h-fit">
-            <ComplianceReport
-              verified={reportData.verified}
-              warnings={reportData.warnings}
-              citations={reportData.citations}
-              isLoading={isProcessing}
-            />
+            <ComplianceReport report={activeReport} isLoading={selectedResponse?.status === "verifying"} />
           </div>
         </div>
       </div>

@@ -2,26 +2,15 @@ import { CheckCircle, AlertTriangle, FileText, ExternalLink } from "lucide-react
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-
-interface ComplianceItem {
-  id: string;
-  text: string;
-  status: "verified" | "warning" | "citation";
-  source?: string;
-  confidence?: number;
-}
+import type { ComplianceReport as ComplianceReportData } from "@/types/ai";
 
 interface ComplianceReportProps {
-  verified?: ComplianceItem[];
-  warnings?: ComplianceItem[];
-  citations?: ComplianceItem[];
+  report?: ComplianceReportData | null;
   isLoading?: boolean;
 }
 
 export function ComplianceReport({ 
-  verified = [], 
-  warnings = [], 
-  citations = [],
+  report = null,
   isLoading = false 
 }: ComplianceReportProps) {
   if (isLoading) {
@@ -42,6 +31,23 @@ export function ComplianceReport({
     );
   }
 
+  if (!report) {
+    return (
+      <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
+        <CardContent className="p-12 text-center">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-info/20 flex items-center justify-center">
+            <FileText className="w-10 h-10 text-muted-foreground" />
+          </div>
+          <p className="text-lg font-semibold mb-2">Awaiting Verification</p>
+          <p className="text-sm text-muted-foreground">
+            Select an AI response to review its compliance report once verification completes.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { verified, warnings, citations, generatedAt } = report;
   const totalItems = verified.length + warnings.length + citations.length;
 
   if (totalItems === 0) {
@@ -70,7 +76,7 @@ export function ComplianceReport({
           Compliance Analysis Report
         </CardTitle>
         <CardDescription>
-          Review the accuracy and compliance status of your documents
+          Generated {new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 p-6">

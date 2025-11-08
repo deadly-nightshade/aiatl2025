@@ -1,50 +1,59 @@
-import { useState } from "react";
-import { RefreshCw, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle, CheckCircle2, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-interface AIResponse {
-  id: string;
-  content: string;
-  timestamp: Date;
-  status: "pending" | "verified" | "warning";
-  confidence?: number;
-}
+import type { AIResponse } from "@/types/ai";
 
 interface AIResponseInputProps {
-  responses?: AIResponse[];
-  onRecheck?: (responseId: string) => void;
-  recheckingId?: string | null;
+  responses: AIResponse[];
+  selectedId?: string | null;
+  onSelect?: (responseId: string) => void;
+  isPolling?: boolean;
+  error?: string | null;
 }
 
 export function AIResponseInput({
-  responses = [],
-  onRecheck,
-  recheckingId = null,
+  responses,
+  selectedId = null,
+  onSelect,
+  isPolling = false,
+  error = null,
 }: AIResponseInputProps) {
-  const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
-
   const getStatusIcon = (status: AIResponse["status"]) => {
     switch (status) {
-      case "verified":
-        return <CheckCircle2 className="w-5 h-5 text-success" />;
+      case "verifying":
+        return <Loader2 className="h-4 w-4 animate-spin text-info" />;
       case "warning":
-        return <AlertCircle className="w-5 h-5 text-warning" />;
+        return <AlertCircle className="h-4 w-4 text-warning" />;
+      case "failed":
+        return <TriangleAlert className="h-4 w-4 text-destructive" />;
+      case "verified":
+        return <CheckCircle2 className="h-4 w-4 text-success" />;
       default:
-        return <Sparkles className="w-5 h-5 text-info" />;
+        return <Sparkles className="h-4 w-4 text-info" />;
     }
   };
 
   const getStatusColor = (status: AIResponse["status"]) => {
     switch (status) {
       case "verified":
-        return "border-success/30 bg-success/5";
+        return "border-success/20 bg-success/5";
       case "warning":
-        return "border-warning/30 bg-warning/5";
+        return "border-warning/20 bg-warning/5";
+      case "verifying":
+        return "border-info/20 bg-info/5";
+      case "failed":
+        return "border-destructive/30 bg-destructive/10";
       default:
-        return "border-info/30 bg-info/5";
+        return "border-border/60 bg-card";
+    }
+  };
+
+  const formatTimestamp = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "—";
     }
   };
 
@@ -69,7 +78,7 @@ export function AIResponseInput({
       <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-info/5">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 rounded-lg bg-gradient-info flex items-center justify-center shadow-md">
-            <Sparkles className="w-5 h-5 text-white" />
+            <Sparkles className="h-5 w-5 text-white" />
           </div>
           <div>
             <CardTitle>AI Response Verification</CardTitle>
@@ -78,6 +87,23 @@ export function AIResponseInput({
             </CardDescription>
           </div>
         </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <Badge variant="outline" className="capitalize">
+            {responses.length} response{responses.length === 1 ? "" : "s"}
+          </Badge>
+          {isPolling && (
+            <span className="inline-flex items-center gap-2 text-info">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              polling bot feed
+            </span>
+          )}
+          {error && (
+            <span className="inline-flex items-center gap-2 text-destructive">
+              <TriangleAlert className="h-3.5 w-3.5" />
+              {error}
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-6">
         <div className="space-y-4">
@@ -85,26 +111,23 @@ export function AIResponseInput({
             <div
               key={response.id}
               className={cn(
-                "group relative rounded-xl border-2 p-5 transition-all duration-300",
+                "group relative rounded-2xl border-2 p-4 transition-all duration-300",
                 getStatusColor(response.status),
-                selectedResponse === response.id 
-                  ? "ring-2 ring-primary shadow-xl scale-[1.02]" 
-                  : "hover:shadow-lg hover:scale-[1.01]",
-                "animate-slide-up"
+                selectedId === response.id ? "ring-2 ring-primary shadow-lg scale-[1.01]" : "hover:shadow-md",
+                "animate-slide-up cursor-pointer"
               )}
               style={{ animationDelay: `${index * 100}ms` }}
-              onClick={() => setSelectedResponse(response.id)}
+              onClick={() => onSelect?.(response.id)}
             >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2">
                   {getStatusIcon(response.status)}
                   <span className="text-xs font-medium text-muted-foreground">
-                    {response.timestamp.toLocaleTimeString()}
+                    {formatTimestamp(response.createdAt)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {response.confidence && (
+                  {typeof response.confidence === "number" && (
                     <Badge 
                       variant="secondary"
                       className={cn(
@@ -123,38 +146,14 @@ export function AIResponseInput({
                 </div>
               </div>
 
-              {/* Content */}
               <div className="relative">
-                <div className="prose prose-sm max-w-none">
-                  <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {response.content}
-                  </p>
-                </div>
-                
-                {/* Gradient overlay for long content */}
+                <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                  {response.content}
+                </p>
+
                 {response.content.length > 300 && (
                   <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background/80 to-transparent pointer-events-none" />
                 )}
-              </div>
-
-              {/* Action Button */}
-              <div className="mt-4 pt-3 border-t border-border/50">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRecheck?.(response.id);
-                  }}
-                  disabled={recheckingId === response.id}
-                  className="w-full transition-all hover:bg-primary/10 hover:border-primary"
-                >
-                  <RefreshCw className={cn(
-                    "w-4 h-4 mr-2",
-                    recheckingId === response.id && "animate-spin"
-                  )} />
-                  {recheckingId === response.id ? "Rechecking..." : "Recheck Response"}
-                </Button>
               </div>
             </div>
           ))}
