@@ -24,9 +24,9 @@ This is a Flask API that implements a comprehensive agentic system using Google 
    FLASK_DEBUG=True
    ```
 
-3. Run the application:
+3. Run the application (cd to backend folder):
    ```bash
-   python app.py
+   uvicorn app:app --reload --host 0.0.0.0 --port 5000
    ```
 
 ## API Endpoints
