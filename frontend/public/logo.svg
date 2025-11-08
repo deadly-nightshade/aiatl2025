@@ -1,0 +1,19 @@
+<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">HealthGuard Logo</title>
+  <desc id="desc">Shield with check mark inside a rounded gradient shape</desc>
+  <defs>
+    <linearGradient id="hg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <linearGradient id="hg-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#93C5FD"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="140" height="140" rx="32" fill="url(#hg-gradient)" opacity="0.12"/>
+  <circle cx="80" cy="80" r="52" fill="url(#hg-gradient)"/>
+  <path d="M80 44C64 44 52 56 52 72c0 28 18 38 28 44a8 8 0 0 0 8 0c10-6 28-16 28-44 0-16-12-28-36-28Z" fill="#fff" opacity="0.9"/>
+  <path d="M68 79l10 10 22-22" fill="none" stroke="url(#hg-accent)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+
