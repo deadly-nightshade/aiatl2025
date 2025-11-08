@@ -1,0 +1,5 @@
+# Environment files
+.env
+
+# Python cache and compiled files
+__pycache__/
