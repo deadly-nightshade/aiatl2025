@@ -50,7 +50,7 @@ export function AIResponseInput({
 
   if (responses.length === 0) {
     return (
-      <Card className="glass-effect shadow-lg">
+      <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
         <CardContent className="p-12 text-center">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-info flex items-center justify-center shadow-glow">
             <Sparkles className="w-10 h-10 text-white" />
@@ -65,7 +65,7 @@ export function AIResponseInput({
   }
 
   return (
-    <Card className="glass-effect shadow-xl animate-in">
+    <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
       <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-info/5">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 rounded-lg bg-gradient-info flex items-center justify-center shadow-md">

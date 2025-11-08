@@ -33,7 +33,7 @@ export function ChatInput({
   };
 
   return (
-    <Card className="glass-effect shadow-xl animate-in">
+    <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
       <form onSubmit={handleSubmit} className="p-4">
         <div className="flex gap-3 items-end">
           <Textarea

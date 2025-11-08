@@ -26,7 +26,7 @@ export function ComplianceReport({
 }: ComplianceReportProps) {
   if (isLoading) {
     return (
-      <Card className="glass-effect shadow-xl animate-pulse">
+      <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors animate-pulse">
         <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-info/5">
           <div className="h-6 bg-muted rounded-lg w-1/3 mb-2" />
           <div className="h-4 bg-muted rounded-lg w-2/3" />
@@ -46,7 +46,7 @@ export function ComplianceReport({
 
   if (totalItems === 0) {
     return (
-      <Card className="glass-effect shadow-xl">
+      <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
         <CardContent className="p-12 text-center">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-info/20 flex items-center justify-center">
             <FileText className="w-10 h-10 text-muted-foreground" />
@@ -61,7 +61,7 @@ export function ComplianceReport({
   }
 
   return (
-    <Card className="glass-effect shadow-xl animate-in">
+    <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
       <CardHeader className="border-b bg-gradient-to-r from-success/5 via-warning/5 to-info/5">
         <CardTitle className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">

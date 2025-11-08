@@ -94,7 +94,7 @@ export function FileUpload({
   };
 
   return (
-    <Card className="glass-effect shadow-xl animate-in">
+    <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
       <CardContent className="p-6">
         <div
           onDrop={handleDrop}

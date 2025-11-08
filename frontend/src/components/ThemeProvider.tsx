@@ -1,16 +1,16 @@
-import { ThemeProvider as NextThemeProvider } from "next-themes";
-import { type ThemeProviderProps} from "next-themes/dist/types"
+import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { type ThemeProviderProps } from "next-themes/dist/types";
 
-export function ThemeProvider({ children, ..props}: ThemeProviderProps) {
-    return (
-        <NextThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disbaleTransitionOnChange
-        {...props}
-        >
-            {children}
-        </NextThemeProvider>
-    );  
+export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
+  return (
+    <NextThemesProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+      {...props}
+    >
+      {children}
+    </NextThemesProvider>
+  );
 }
