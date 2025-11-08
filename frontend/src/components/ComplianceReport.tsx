@@ -1,18 +1,16 @@
-import { CheckCircle, AlertTriangle, FileText, ExternalLink } from "lucide-react";
+import { CheckCircle, AlertTriangle, FileText, Loader2, TriangleAlert, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import type { ComplianceReport as ComplianceReportData } from "@/types/ai";
+import type { AIResponse, ComplianceReport as ComplianceReportData } from "@/types/ai";
 
 interface ComplianceReportProps {
   report?: ComplianceReportData | null;
+  response?: AIResponse | null;
   isLoading?: boolean;
 }
 
-export function ComplianceReport({ 
-  report = null,
-  isLoading = false 
-}: ComplianceReportProps) {
+export function ComplianceReport({ report = null, response = null, isLoading = false }: ComplianceReportProps) {
   if (isLoading) {
     return (
       <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors animate-pulse">
@@ -35,13 +33,41 @@ export function ComplianceReport({
     return (
       <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
         <CardContent className="p-12 text-center">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-info/20 flex items-center justify-center">
-            <FileText className="w-10 h-10 text-muted-foreground" />
-          </div>
-          <p className="text-lg font-semibold mb-2">Awaiting Verification</p>
-          <p className="text-sm text-muted-foreground">
-            Select an AI response to review its compliance report once verification completes.
-          </p>
+          {response?.status === "verifying" && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-info/20 flex items-center justify-center">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              </div>
+              <p className="text-lg font-semibold mb-2">Verification in progress</p>
+              <p className="text-sm text-muted-foreground">
+                We’re validating the selected response for compliance. Reports appear here when checks complete.
+              </p>
+            </>
+          )}
+          {response?.status === "failed" && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+                <TriangleAlert className="h-10 w-10 text-destructive" />
+              </div>
+              <p className="text-lg font-semibold mb-2">Verification failed</p>
+              <p className="text-sm text-muted-foreground">
+                {response.metadata?.verificationError
+                  ? String(response.metadata.verificationError)
+                  : "The verification service could not process this response."}
+              </p>
+            </>
+          )}
+          {!response && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-info/20 flex items-center justify-center">
+                <FileText className="w-10 h-10 text-muted-foreground" />
+              </div>
+              <p className="text-lg font-semibold mb-2">Select a response</p>
+              <p className="text-sm text-muted-foreground">
+                Choose an AI output from the feed to review its compliance report once generated.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     );
@@ -80,6 +106,19 @@ export function ComplianceReport({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
+        {response && (
+          <div className="rounded-2xl border border-border/60 bg-background/70 p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="capitalize">
+                {response.status === "warning" ? "Verified with warnings" : response.status}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {new Date(response.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+            <p className="mt-2 text-muted-foreground">{response.content}</p>
+          </div>
+        )}
         {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-4">
           <div className="group text-center p-6 rounded-xl bg-gradient-success border-2 border-success/30 shadow-lg hover:shadow-xl transition-all hover:scale-105 cursor-pointer">

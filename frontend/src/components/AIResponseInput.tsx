@@ -57,6 +57,23 @@ export function AIResponseInput({
     }
   };
 
+  const statusLabel = (response: AIResponse) => {
+    switch (response.status) {
+      case "pending":
+        return "Pending verification";
+      case "verifying":
+        return "Running compliance checks";
+      case "verified":
+        return "Verified";
+      case "warning":
+        return "Verified with warnings";
+      case "failed":
+        return "Verification failed";
+      default:
+        return response.status;
+    }
+  };
+
   if (responses.length === 0) {
     return (
       <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-lg backdrop-blur transition-colors">
@@ -141,7 +158,7 @@ export function AIResponseInput({
                     </Badge>
                   )}
                   <Badge variant="outline" className="capitalize">
-                    {response.status}
+                    {statusLabel(response)}
                   </Badge>
                 </div>
               </div>
@@ -155,6 +172,16 @@ export function AIResponseInput({
                   <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background/80 to-transparent pointer-events-none" />
                 )}
               </div>
+
+              {response.status === "failed" && response.metadata?.verificationError && (
+                <div className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                  <div className="flex items-center gap-2 font-medium">
+                    <TriangleAlert className="h-3.5 w-3.5" />
+                    Verification error
+                  </div>
+                  <p className="mt-1 text-destructive/90">{String(response.metadata.verificationError)}</p>
+                </div>
+              )}
             </div>
           ))}
         </div>

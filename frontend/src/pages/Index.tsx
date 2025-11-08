@@ -7,7 +7,7 @@ import { useBotFeed } from "@/hooks/use-bot-feed";
 import { toast } from "@/hooks/use-toast";
 
 export default function Index() {
-  const { responses, reports, isPolling, error, refresh } = useBotFeed();
+  const { responses, reports, isPolling, error, lastUpdated, refresh } = useBotFeed();
   const [selectedResponseId, setSelectedResponseId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,6 +73,11 @@ export default function Index() {
               <p className="text-xs text-muted-foreground">
                 {isPolling ? "Polling bot feed for updates" : "Idle"}
               </p>
+              {lastUpdated && (
+                <p className="mt-1 text-xs text-muted-foreground/80">
+                  Last update: {new Date(lastUpdated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              )}
             </div>
             <div className="flex gap-3">
               <Button variant="outline" size="sm" onClick={refresh} disabled={isPolling} className="rounded-full px-4">
@@ -97,7 +102,7 @@ export default function Index() {
   maybe add history log detail? The left column will just have AIResponseInput; fine.
 
           <div className="lg:sticky lg:top-8 lg:h-fit">
-            <ComplianceReport report={activeReport} isLoading={selectedResponse?.status === "verifying"} />
+            <ComplianceReport report={activeReport} response={selectedResponse} isLoading={selectedResponse?.status === "verifying"} />
           </div>
         </div>
       </div>

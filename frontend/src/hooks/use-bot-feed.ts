@@ -17,6 +17,7 @@ export function useBotFeed() {
   const [reports, setReports] = useState<ReportsById>({});
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMounted = useRef(true);
@@ -45,6 +46,7 @@ export function useBotFeed() {
           ...prev,
           [result.response.id]: result.report,
         }));
+        setLastUpdated(new Date().toISOString());
 
         updateResponse(result.response.id, () => ({
           ...result.response,
@@ -61,6 +63,7 @@ export function useBotFeed() {
             verificationError: verificationError instanceof Error ? verificationError.message : String(verificationError),
           },
         }));
+        setLastUpdated(new Date().toISOString());
       }
     },
     [updateResponse],
@@ -79,6 +82,7 @@ export function useBotFeed() {
 
       const enriched = enrichBotOutputs(outputs);
       setResponses((prev) => [...prev, ...enriched]);
+      setLastUpdated(new Date().toISOString());
 
       for (const response of enriched) {
         await handleVerification(response);
@@ -114,6 +118,7 @@ export function useBotFeed() {
             ...prev,
             [responseId]: report,
           }));
+          setLastUpdated(new Date().toISOString());
 
           updateResponse(responseId, (current) => ({
             ...current,
@@ -148,6 +153,7 @@ export function useBotFeed() {
     reports,
     isPolling,
     error,
+    lastUpdated,
     refresh: manualRefresh,
   };
 }
