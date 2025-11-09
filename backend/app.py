@@ -19,7 +19,6 @@ load_dotenv()
 class ReportRequest(BaseModel):
     original_prompt: str
     llm_output: str
-    relevant_documents: Optional[str] = ""
 
 class ChatRequest(BaseModel):
     message: str
@@ -34,7 +33,6 @@ class BotOutputRequest(BaseModel):
     prompt: str
     response: str
     metadata: Optional[Dict[str, Any]] = None
-    relevant_documents: Optional[str] = ""
 
 # In-memory stores
 bot_outputs: List[Dict[str, Any]] = []
@@ -75,11 +73,10 @@ async def health_check():
     """Health check endpoint"""
     return {"message": "FastAPI Medical AI Analysis System is running!", "status": "healthy"}
 
-def run_full_analysis(original_prompt: str, llm_output: str, relevant_documents: str = "") -> Dict[str, Any]:
+def run_full_analysis(original_prompt: str, llm_output: str) -> Dict[str, Any]:
     context = {
         "original_prompt": original_prompt,
         "llm_output": llm_output,
-        "relevant_documents": relevant_documents,
     }
 
     hallucination_result = hallucination_guard.execute_task(
@@ -109,7 +106,7 @@ def run_full_analysis(original_prompt: str, llm_output: str, relevant_documents:
         "input_summary": {
             "prompt_length": len(original_prompt),
             "output_length": len(llm_output),
-            "has_documents": bool(relevant_documents),
+            "has_documents": False,
         },
         "status": "completed",
         "timestamp": datetime.utcnow().isoformat(),
@@ -122,21 +119,19 @@ async def generate_report(request: ReportRequest):
     
     - **original_prompt**: The original prompt sent to the LLM
     - **llm_output**: The LLM's response that needs to be analyzed
-    - **relevant_documents**: Optional source documents used to generate the response
     """
     try:
         return run_full_analysis(
             original_prompt=request.original_prompt,
             llm_output=request.llm_output,
-            relevant_documents=request.relevant_documents or "",
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # Background task for analysis
-async def analyze_and_update(response_id: str, prompt: str, assistant_response: str, relevant_documents: str = ""):
+async def analyze_and_update(response_id: str, prompt: str, assistant_response: str):
     try:
-        report = run_full_analysis(prompt, assistant_response, relevant_documents)
+        report = run_full_analysis(prompt, assistant_response)
         bot_reports[response_id] = report
 
         for entry in bot_outputs:
@@ -340,7 +335,6 @@ async def ingest_bot_output(request: BotOutputRequest, background_tasks: Backgro
         response_id=assistant_id,
         prompt=request.prompt,
         assistant_response=request.response,
-        relevant_documents=request.relevant_documents or "",
     )
 
     return assistant_entry
