@@ -260,9 +260,42 @@ export default function Index() {
     [latestInteraction, reports],
   );
 
+  const verificationStats = useMemo(() => {
+    const counters = {
+      total: assistantResponses.length,
+      verified: 0,
+      warning: 0,
+      failed: 0,
+      verifying: 0,
+      pending: 0,
+    };
+
+    assistantResponses.forEach((response) => {
+      switch (response.status) {
+        case "verified":
+          counters.verified += 1;
+          break;
+        case "warning":
+          counters.warning += 1;
+          break;
+        case "failed":
+          counters.failed += 1;
+          break;
+        case "verifying":
+          counters.verifying += 1;
+          break;
+        default:
+          counters.pending += 1;
+          break;
+      }
+    });
+
+    return counters;
+  }, [assistantResponses]);
+
   const topInteractions = useMemo(() => {
     if (interactions.length === 0) return [] as Interaction[];
-    return interactions.slice(-3).reverse();
+    return interactions.slice(-2).reverse();
   }, [interactions]);
 
   const historyInteractions = useMemo(() => {
@@ -291,7 +324,8 @@ export default function Index() {
     }
 
     const roleStyle = ROLE_STYLES[role];
-    const statusDisplay = getStatusDisplay(role === "user" ? "pending" : entry.status);
+    const showStatus = role === "assistant";
+    const statusDisplay = showStatus ? getStatusDisplay(entry.status) : null;
     const timestamp = new Date(entry.createdAt).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
@@ -308,11 +342,13 @@ export default function Index() {
             </span>
             {roleStyle.label}
           </span>
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[0.65rem] font-semibold uppercase ${statusDisplay.className}`}
-          >
-            Status: {statusDisplay.label}
-          </span>
+          {showStatus && statusDisplay && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[0.65rem] font-semibold uppercase ${statusDisplay.className}`}
+            >
+              Status: {statusDisplay.label}
+            </span>
+          )}
         </div>
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{entry.content}</p>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground/80">
@@ -371,69 +407,55 @@ export default function Index() {
       <div className="absolute inset-x-0 top-[-10%] mx-auto h-64 w-3/4 rounded-full bg-gradient-to-br from-primary/10 via-info/10 to-transparent blur-3xl" />
       <div className="container relative mx-auto px-4 py-10">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <header className="flex flex-col gap-6 rounded-3xl border border-border/60 bg-card/60 p-8 shadow-lg backdrop-blur-xl transition-colors md:flex-row md:items-start md:justify-between">
-            <div className="flex items-start gap-4">
-            <img
-              src="/logo.svg"
-              alt="HealthGuard AI logo"
-              className="h-16 w-16 rounded-2xl shadow-glow ring-1 ring-primary/20"
-            />
-            <div>
-              <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                <span className="h-2 w-2 rounded-full bg-primary" />
-                Bot Middleware Monitor
-              </span>
-                <h1 className="mt-4 text-4xl font-bold leading-tight text-foreground md:text-5xl">
-                Compliance Stream for GPT-5
-              </h1>
-                <p className="mt-2 text-sm text-muted-foreground md:text-base">
-                  Route local chatbot answers through verification middleware, surfaced in one control plane.
-              </p>
+          <nav className="flex w-full justify-center">
+            <div className="flex w-full max-w-4xl items-center justify-between rounded-full border border-border/50 bg-card/70 px-6 py-3 shadow-lg backdrop-blur">
+              <div className="flex flex-1 justify-center">
+                <TabsList className="flex max-w-md flex-1 justify-center gap-3 rounded-full bg-transparent p-0">
+                  <TabsTrigger value="overview" className="flex-1 rounded-full px-4 py-2">
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="history" className="flex-1 rounded-full px-4 py-2">
+                    History
+                  </TabsTrigger>
+                  <TabsTrigger value="reports" className="flex-1 rounded-full px-4 py-2">
+                    Reports
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              <div className="ml-4">
+                <ThemeToggle />
+              </div>
             </div>
-          </div>
-
-          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-            <div className="rounded-2xl border border-border/60 bg-background/80 px-5 py-4 text-sm shadow-sm backdrop-blur">
-              <p className="font-medium text-foreground">Status</p>
-              <p className="text-xs text-muted-foreground">
-                {isPolling ? "Polling bot feed for updates" : "Idle"}
-              </p>
-              {lastUpdated && (
-                <p className="mt-1 text-xs text-muted-foreground/80">
-                  Last update: {new Date(lastUpdated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={refresh}
-                  disabled={isPolling}
-                  className="rounded-full px-4"
-                >
-                Refresh now
-              </Button>
-              <ThemeToggle />
-            </div>
-          </div>
-
-            <TabsList className="w-full md:max-w-xs md:self-end">
-              <TabsTrigger value="overview" className="flex-1">
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="history" className="flex-1">
-                History
-              </TabsTrigger>
-              <TabsTrigger value="reports" className="flex-1">
-                Reports
-              </TabsTrigger>
-            </TabsList>
-        </header>
+          </nav>
 
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-3">
-              <Card className="lg:col-span-2 border border-border/60 bg-card/80 backdrop-blur">
+            <header className="rounded-[2.75rem] border border-border/60 bg-card/60 p-10 shadow-2xl backdrop-blur-3xl">
+              <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                <div className="flex items-start gap-4">
+                  <img
+                    src="/logo.svg"
+                    alt="HealthGuard AI logo"
+                    className="h-16 w-16 rounded-2xl shadow-glow ring-1 ring-primary/20"
+                  />
+                  <div>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                      <span className="h-2 w-2 rounded-full bg-primary" />
+                      Bot Middleware Monitor
+                    </span>
+                    <h1 className="mt-4 text-4xl font-bold leading-tight text-foreground md:text-5xl lg:text-6xl">
+                      Compliance Stream for GPT-5
+                    </h1>
+                    <p className="mt-3 max-w-xl text-base text-muted-foreground md:text-lg">
+                      Observe automated outputs, track verification status, and review compliance findings in real time.
+                      Monitor the flow end-to-end, from user prompts to assistant responses.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="border border-border/60 bg-card/80 backdrop-blur">
                 <CardHeader>
                   <CardTitle>What this middleware does</CardTitle>
                   <CardDescription>
@@ -450,42 +472,68 @@ export default function Index() {
 
               <Card className="border border-border/60 bg-card/80 backdrop-blur">
                 <CardHeader>
-                  <CardTitle>Latest capture</CardTitle>
-                  <CardDescription>Most recent chatbot payload received from the middleware</CardDescription>
+                  <CardTitle>Verification summary</CardTitle>
+                  <CardDescription>Snapshot of assistant responses moving through middleware right now</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 text-sm text-muted-foreground">
-                  {latestInteraction ? (
-                    renderInteractionPair(latestInteraction, {
-                      report: latestInteraction.assistant ? reports[latestInteraction.assistant.id] ?? null : null,
-                      placeholderText: "The assistant response will appear here once verified.",
-                    })
-                  ) : (
-                    <p>No responses captured yet. Send a prompt from your chatbot to get started.</p>
-                  )}
+                <CardContent className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-2">
+                  <div className="rounded-2xl border border-border/40 bg-background/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">Verified</p>
+                    <p className="mt-2 text-3xl font-semibold text-success">{verificationStats.verified}</p>
+                    <p className="mt-2 text-xs text-muted-foreground/70">
+                      Assistant responses that cleared compliance review.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/40 bg-background/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">Warnings</p>
+                    <p className="mt-2 text-3xl font-semibold text-warning">{verificationStats.warning}</p>
+                    <p className="mt-2 text-xs text-muted-foreground/70">
+                      Responses flagged for human intervention before release.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/40 bg-background/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">In review</p>
+                    <p className="mt-2 text-3xl font-semibold text-info">
+                      {verificationStats.verifying + verificationStats.pending}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground/70">
+                      Responses currently being checked or queued by middleware.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/40 bg-background/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+                      Failed checks
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-destructive">{verificationStats.failed}</p>
+                    <p className="mt-2 text-xs text-muted-foreground/70">
+                      Items where compliance analysis halted downstream use.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </div>
 
             <Card className="border border-border/60 bg-card/80 backdrop-blur">
-              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <CardTitle>Latest verification</CardTitle>
                   <CardDescription>Live view of the latest chatbot response moving through compliance checks</CardDescription>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-primary hover:text-primary"
-                  onClick={() => {
-                    if (latestInteraction?.assistant) {
-                      setSelectedResponseId(latestInteraction.assistant.id);
-                    }
-                    setActiveTab("reports");
-                  }}
-                  disabled={!latestInteraction?.assistant}
-                >
-                  View reports
-                </Button>
+                <div className="flex items-center gap-2">
+                  {lastUpdated && (
+                    <span className="text-xs text-muted-foreground/80">
+                      Updated {new Date(lastUpdated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full px-3"
+                    onClick={refresh}
+                    disabled={isPolling}
+                  >
+                    Refresh
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4 text-sm text-muted-foreground">
                 {latestInteraction ? (
@@ -532,9 +580,11 @@ export default function Index() {
                                   day: "numeric",
                                 })}
                               </CardTitle>
-                              <CardDescription className="capitalize">
-                                Status: {interaction.assistant?.status ?? "pending"}
-                              </CardDescription>
+                              {interaction.assistant ? (
+                                <CardDescription className="capitalize">
+                                  Status: {interaction.assistant.status}
+                                </CardDescription>
+                              ) : null}
                             </div>
                             <Button
                               variant="outline"
@@ -567,7 +617,7 @@ export default function Index() {
 
           <TabsContent value="reports">
             <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2 space-y-4">
+              <div className="space-y-4 lg:col-span-1">
                 {topInteractions.length === 0 ? (
                   <Card className="border border-border/60 bg-card/80 backdrop-blur">
                     <CardContent className="p-8 text-center text-sm text-muted-foreground">
@@ -596,24 +646,6 @@ export default function Index() {
                                 minute: "2-digit",
                               })}
                             </CardTitle>
-                            <CardDescription className="capitalize">
-                              Status: {interaction.assistant?.status ?? "pending"}
-                            </CardDescription>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                if (assistantId) {
-                                  setSelectedResponseId(assistantId);
-                                  setActiveTab("reports");
-                                }
-                              }}
-                              disabled={!assistantId}
-                            >
-                              View details
-                            </Button>
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-4 text-sm text-muted-foreground">
@@ -651,7 +683,7 @@ export default function Index() {
                   </Card>
                 )}
               </div>
-              <div className="lg:col-span-1 lg:sticky lg:top-8 lg:h-fit">
+              <div className="lg:col-span-2 lg:sticky lg:top-8 lg:h-fit">
                 <ComplianceReport
                   report={activeReport}
                   response={selectedResponse}
