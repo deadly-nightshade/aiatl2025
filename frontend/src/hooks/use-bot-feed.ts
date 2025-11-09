@@ -6,11 +6,30 @@ import {
   fetchComplianceReport,
   requestVerification,
 } from "@/services/ai";
-import type { AIResponse, ComplianceReport } from "@/types/ai";
+import type { AIResponse, AIRole, ComplianceReport } from "@/types/ai";
 
 const POLL_INTERVAL_MS = 4000;
 
 type ReportsById = Record<string, ComplianceReport>;
+
+function readMetadataRole(response: AIResponse): AIRole | undefined {
+  const directRole = response.role;
+  if (directRole === "user" || directRole === "assistant") {
+    return directRole;
+  }
+
+  const metadata = response.metadata;
+  if (!metadata || typeof metadata !== "object") {
+    return undefined;
+  }
+
+  const role = (metadata as Record<string, unknown>).role;
+  return role === "user" || role === "assistant" ? role : undefined;
+}
+
+function isAssistantResponse(response: AIResponse): boolean {
+  return readMetadataRole(response) === "assistant";
+}
 
 export function useBotFeed() {
   const [responses, setResponses] = useState<AIResponse[]>([]);
@@ -32,6 +51,10 @@ export function useBotFeed() {
 
   const handleVerification = useCallback(
     async (response: AIResponse) => {
+      if (!isAssistantResponse(response)) {
+        return;
+      }
+
       updateResponse(response.id, (current) => ({ ...current, status: "verifying" }));
 
       try {
@@ -101,7 +124,10 @@ export function useBotFeed() {
     await pullBotOutputs();
 
     const pendingIds = responses
-      .filter((response) => response.status === "verifying" || response.status === "pending")
+      .filter(
+        (response) =>
+          isAssistantResponse(response) && (response.status === "verifying" || response.status === "pending"),
+      )
       .map((response) => response.id);
 
     if (pendingIds.length === 0) {

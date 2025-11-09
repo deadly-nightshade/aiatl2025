@@ -4,6 +4,8 @@
   "scripts": {
     "build": "npm --prefix frontend run build",
     "dev": "npm --prefix frontend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
     "lint": "npm --prefix frontend run lint",
     "install:frontend": "npm --prefix frontend install"
   }

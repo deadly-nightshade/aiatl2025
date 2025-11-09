@@ -1,11 +1,16 @@
 export type AIResponseStatus = "pending" | "verifying" | "verified" | "warning" | "failed";
 
+export type AIRole = "user" | "assistant";
+
 export interface BotOutputPayload {
   id: string;
+  prompt?: string;
   content: string;
   createdAt: string;
   confidence?: number;
   metadata?: Record<string, unknown>;
+  role?: AIRole;
+  status?: AIResponseStatus;
 }
 
 export interface AIResponse extends BotOutputPayload {
