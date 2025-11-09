@@ -52,6 +52,14 @@ class HallucinationGuardAgent(BaseAgent):
             verified_claims = []
             for claim in claims:
                 verification_result = self.verify_claim_with_mcp(claim)
+                logger.info(
+                    "Claim verification result",
+                    extra={
+                        "claim": claim,
+                        "status": verification_result.get("verification_status"),
+                        "confidence": verification_result.get("confidence"),
+                    },
+                )
                 verified_claims.append(verification_result)
             
             # 3. Calculate overall confidence based on verifications
@@ -397,7 +405,7 @@ class HallucinationGuardAgent(BaseAgent):
         
         # Adjust based on verification results
         if contradicted_count > 0:
-            final_confidence = max(0, avg_confidence - (contradicted_count * 20))
+            final_confidence = max(0, avg_confidence - (contradicted_count * 25))
         elif supported_count >= len(verified_claims) * 0.7:
             final_confidence = min(100, avg_confidence + 10)
         else:
@@ -429,7 +437,7 @@ class HallucinationGuardAgent(BaseAgent):
                     "issue_type": "Unverifiable Claim",
                     "description": "No web sources found for verification",
                     "evidence": claim,
-                    "risk_level": "MEDIUM",
+                    "risk_level": "HIGH",
                     "explanation": "Could not find web sources to verify this claim"
                 })
             elif status == 'Verification Error':
@@ -437,7 +445,7 @@ class HallucinationGuardAgent(BaseAgent):
                     "issue_type": "Verification Error",
                     "description": "Technical error during verification",
                     "evidence": claim,
-                    "risk_level": "MEDIUM",
+                    "risk_level": "HIGH",
                     "explanation": evidence
                 })
         
@@ -515,13 +523,21 @@ class HallucinationGuardAgent(BaseAgent):
     
     def determine_risk_level(self, confidence_score: float, issues: List[Dict]) -> str:
         """Determine overall risk level based on confidence and issues."""
-        if confidence_score >= 85 and len(issues) == 0:
-            return "LOW"
-        elif confidence_score >= 70 and len([i for i in issues if i['risk_level'] in ['HIGH', 'CRITICAL']]) == 0:
-            return "LOW"
-        elif confidence_score >= 50 and len([i for i in issues if i['risk_level'] == 'CRITICAL']) == 0:
-            return "MEDIUM"
-        elif confidence_score >= 30:
-            return "HIGH"
-        else:
+        has_critical = any(issue.get('risk_level') == 'CRITICAL' for issue in issues)
+        has_high = any(issue.get('risk_level') == 'HIGH' for issue in issues)
+        has_medium = any(issue.get('risk_level') == 'MEDIUM' for issue in issues)
+
+        if has_critical:
             return "CRITICAL"
+        if has_high:
+            return "HIGH"
+        if has_medium:
+            return "MEDIUM" if confidence_score >= 40 else "HIGH"
+
+        if confidence_score >= 85:
+            return "LOW"
+        if confidence_score >= 60:
+            return "MEDIUM"
+        if confidence_score >= 30:
+            return "HIGH"
+        return "CRITICAL"
