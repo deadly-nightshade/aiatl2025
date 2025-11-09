@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException
+import uuid
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 from datetime import datetime
 import os
@@ -10,7 +11,6 @@ from agents.gemini_agent import GeminiAgent
 from agents.base_agent import AgentManager
 from agents.hallucination_guard import HallucinationGuardAgent
 from agents.compliance_checker import ComplianceCheckerAgent
-from config import config
 
 # Load environment variables
 load_dotenv()
@@ -29,6 +29,16 @@ class TaskRequest(BaseModel):
     task: str
     context: Optional[Dict[str, Any]] = {}
     agent: Optional[str] = "gemini"
+
+class BotOutputRequest(BaseModel):
+    prompt: str
+    response: str
+    metadata: Optional[Dict[str, Any]] = None
+    relevant_documents: Optional[str] = ""
+
+# In-memory stores
+bot_outputs: List[Dict[str, Any]] = []
+bot_reports: Dict[str, Dict[str, Any]] = {}
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -65,6 +75,46 @@ async def health_check():
     """Health check endpoint"""
     return {"message": "FastAPI Medical AI Analysis System is running!", "status": "healthy"}
 
+def run_full_analysis(original_prompt: str, llm_output: str, relevant_documents: str = "") -> Dict[str, Any]:
+    context = {
+        "original_prompt": original_prompt,
+        "llm_output": llm_output,
+        "relevant_documents": relevant_documents,
+    }
+
+    hallucination_result = hallucination_guard.execute_task(
+        "hallucination_detection",
+        context,
+    )
+
+    compliance_result = compliance_checker.execute_task(
+        "compliance_check",
+        context,
+    )
+
+    combined_assessment = generate_combined_assessment(
+        hallucination_result,
+        compliance_result,
+        original_prompt,
+        llm_output,
+    )
+
+    return {
+        "report_id": f"report_{hash(original_prompt + llm_output) % 10000}",
+        "analysis": {
+            "hallucination_analysis": hallucination_result,
+            "compliance_analysis": compliance_result,
+            "combined_assessment": combined_assessment,
+        },
+        "input_summary": {
+            "prompt_length": len(original_prompt),
+            "output_length": len(llm_output),
+            "has_documents": bool(relevant_documents),
+        },
+        "status": "completed",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
 @app.post("/api/report")
 async def generate_report(request: ReportRequest):
     """
@@ -75,51 +125,36 @@ async def generate_report(request: ReportRequest):
     - **relevant_documents**: Optional source documents used to generate the response
     """
     try:
-        # Prepare context for agents
-        context = {
-            "original_prompt": request.original_prompt,
-            "llm_output": request.llm_output,
-            "relevant_documents": request.relevant_documents
-        }
-        
-        # 1. Run Hallucination Guard Analysis
-        hallucination_result = hallucination_guard.execute_task(
-            "hallucination_detection", 
-            context
+        return run_full_analysis(
+            original_prompt=request.original_prompt,
+            llm_output=request.llm_output,
+            relevant_documents=request.relevant_documents or "",
         )
-        
-        # 2. Run Compliance Check
-        compliance_result = compliance_checker.execute_task(
-            "compliance_check", 
-            context
-        )
-        
-        # 3. Generate Combined Risk Assessment
-        combined_assessment = generate_combined_assessment(
-            hallucination_result, 
-            compliance_result, 
-            request.original_prompt, 
-            request.llm_output
-        )
-        
-        return {
-            "report_id": f"report_{hash(request.original_prompt + request.llm_output) % 10000}",
-            "analysis": {
-                "hallucination_analysis": hallucination_result,
-                "compliance_analysis": compliance_result,
-                "combined_assessment": combined_assessment
-            },
-            "input_summary": {
-                "prompt_length": len(request.original_prompt),
-                "output_length": len(request.llm_output),
-                "has_documents": bool(request.relevant_documents)
-            },
-            "status": "completed",
-            "timestamp": str(datetime.now())
-        }
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Background task for analysis
+async def analyze_and_update(response_id: str, prompt: str, assistant_response: str, relevant_documents: str = ""):
+    try:
+        report = run_full_analysis(prompt, assistant_response, relevant_documents)
+        bot_reports[response_id] = report
+
+        for entry in bot_outputs:
+            if entry["id"] == response_id:
+                entry["status"] = "warning" if report["analysis"]["combined_assessment"].get("overall_risk_level") in {"HIGH", "CRITICAL"} else "verified"
+                entry["reportId"] = report["report_id"]
+                entry.setdefault("metadata", {})["reportKey"] = response_id
+                entry.setdefault("metadata", {})["reportId"] = report["report_id"]
+                entry["updatedAt"] = datetime.utcnow().isoformat()
+                break
+    except Exception as err:
+        for entry in bot_outputs:
+            if entry["id"] == response_id:
+                entry["status"] = "failed"
+                entry.setdefault("metadata", {})["reportKey"] = response_id
+                entry.setdefault("metadata", {})["verificationError"] = str(err)
+                entry["updatedAt"] = datetime.utcnow().isoformat()
+                break
 
 def generate_combined_assessment(hallucination_result, compliance_result, original_prompt, llm_output):
     """Generate a combined risk assessment from both analyses."""
@@ -257,6 +292,65 @@ async def clear_history(agent_name: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/bot-output")
+async def list_bot_outputs(after: Optional[str] = None):
+    if after:
+        for idx, entry in enumerate(bot_outputs):
+            if entry["id"] == after:
+                return bot_outputs[idx + 1 :]
+        return []
+    return bot_outputs
+
+@app.post("/api/bot-output")
+async def ingest_bot_output(request: BotOutputRequest, background_tasks: BackgroundTasks):
+    conversation_id = str(uuid.uuid4())
+    created_at = datetime.utcnow().isoformat()
+
+    user_entry = {
+        "id": str(uuid.uuid4()),
+        "content": request.prompt,
+        "createdAt": created_at,
+        "metadata": {
+            "pairId": conversation_id,
+            **(request.metadata or {}),
+        },
+        "role": "user",
+        "status": "pending",
+    }
+
+    assistant_id = str(uuid.uuid4())
+    assistant_entry = {
+        "id": assistant_id,
+        "content": request.response,
+        "createdAt": created_at,
+        "metadata": {
+            "pairId": conversation_id,
+            "reportKey": assistant_id,
+            **(request.metadata or {}),
+        },
+        "role": "assistant",
+        "status": "pending",
+    }
+
+    bot_outputs.extend([user_entry, assistant_entry])
+
+    background_tasks.add_task(
+        analyze_and_update,
+        response_id=assistant_id,
+        prompt=request.prompt,
+        assistant_response=request.response,
+        relevant_documents=request.relevant_documents or "",
+    )
+
+    return assistant_entry
+
+@app.get("/api/report/{response_id}")
+async def get_stored_report(response_id: str):
+    report = bot_reports.get(response_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not ready")
+    return report
 
 if __name__ == "__main__":
     import uvicorn

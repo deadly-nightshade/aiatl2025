@@ -326,12 +326,15 @@ export default function Index() {
     const roleStyle = ROLE_STYLES[role];
     const showStatus = role === "assistant";
     const statusDisplay = showStatus ? getStatusDisplay(entry.status) : null;
-    const timestamp = new Date(entry.createdAt).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const timestamp = new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-    const report = options.report;
+    const report = options.report ?? undefined;
+    const reportGeneratedAt = report ? new Date(report.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
+    const hallucinationIssueCount = report?.analysis?.hallucinationAnalysis?.detail?.issuesDetected?.length ?? 0;
+    const fdaViolationCount = report?.analysis?.complianceAnalysis?.detail?.fdaCompliance?.fdaAnalysis?.violations?.length ?? 0;
+    const phiViolationCount = report?.analysis?.complianceAnalysis?.detail?.phiViolations?.patternViolations?.length ?? 0;
+    const recommendationCount = report?.analysis?.complianceAnalysis?.detail?.recommendations?.length ?? 0;
+    const totalFindings = hallucinationIssueCount + fdaViolationCount + phiViolationCount + recommendationCount;
 
     return (
       <div className={`space-y-3 rounded-2xl border p-4 shadow-sm ${roleStyle.container}`}>
@@ -353,23 +356,15 @@ export default function Index() {
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{entry.content}</p>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground/80">
           <span>{timestamp}</span>
-          {role === "assistant" && typeof entry.confidence === "number" && (
-            <span>Confidence {entry.confidence}%</span>
+          {role === "assistant" && typeof entry.confidence === "number" && <span>Confidence {entry.confidence}%</span>}
+          {role === "assistant" && report && reportGeneratedAt && (
+            <span>Verified {reportGeneratedAt}</span>
           )}
-          {role === "assistant" && report ? (
-            <>
-              <span>
-                Verified{" "}
-                {new Date(report.generatedAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-              <span>
-                Findings: {report.warnings.length} warning{report.warnings.length === 1 ? "" : "s"}
-              </span>
-            </>
-          ) : null}
+          {role === "assistant" && totalFindings > 0 && (
+            <span>
+              Findings: {totalFindings}
+            </span>
+          )}
         </div>
       </div>
     );
