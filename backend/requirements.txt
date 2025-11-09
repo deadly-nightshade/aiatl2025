@@ -6,6 +6,5 @@ google-api-python-client==2.108.0
 google-auth==2.23.4
 requests==2.31.0
 beautifulsoup4==4.12.2
-lxml==4.9.3
 urllib3==2.0.7
 pymed==0.8.9
