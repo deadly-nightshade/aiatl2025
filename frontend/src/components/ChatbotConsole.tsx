@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 
 import { recordBotInteraction } from "@/services/ai";
 import { sendPromptToChatbot } from "@/services/chatbot";
+import { formatESTTime } from "@/lib/time";
 
 type InteractionStatus = "pending" | "success" | "error";
 
@@ -148,13 +149,11 @@ export function ChatbotConsole({ onInteractionRecorded }: ChatbotConsoleProps) {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{new Date(interaction.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                      <span>{formatESTTime(interaction.createdAt)}</span>
                       {interaction.completedAt && interaction.status === "success" && (
                         <>
                           <span>•</span>
-                          <span>
-                            completed {new Date(interaction.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </span>
+                          <span>completed {formatESTTime(interaction.completedAt)}</span>
                         </>
                       )}
                     </div>

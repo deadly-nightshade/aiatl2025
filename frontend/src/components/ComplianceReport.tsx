@@ -1,6 +1,7 @@
-import { AlertTriangle, CheckCircle, ExternalLink, FileText, Loader2, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle, ExternalLink, FileText, Loader2, ShieldAlert, ShieldCheck, TriangleAlert, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
 import type {
   AIResponse,
@@ -231,168 +232,150 @@ export function ComplianceReport({ report = null, response = null, isLoading = f
           Generated {formatESTDateTime(timestamp)}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-8 p-6">
-        <Separator />
-
-        <section className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/20">
-              <ShieldAlert className="h-5 w-5 text-destructive" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">Hallucination Findings</h3>
+      <CardContent className="space-y-4 p-6">
+        <Accordion type="multiple" className="space-y-4">
+          <AccordionItem value="hallucination">
+            <AccordionTrigger className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3 text-left text-base font-semibold">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-destructive" />
+                Hallucination Findings
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4 rounded-2xl border border-border/50 bg-card/70 p-4">
               <p className="text-xs text-muted-foreground">
                 Confidence score {hallucinationDetail.confidenceScore.toFixed(2)} · {hallucinationDetail.riskLevel} risk
               </p>
-            </div>
-          </div>
 
-          {hallucinationDetail.issuesDetected.length === 0 ? (
-            <div className="rounded-2xl border border-success/40 bg-success/10 p-4 text-sm text-success">
-              <div className="flex items-center gap-2 font-semibold">
-                <CheckCircle className="h-4 w-4" />
-                No hallucination issues detected
-              </div>
-              <p className="text-xs text-success/90 mt-1">{hallucinationDetail.reasoning}</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {hallucinationDetail.issuesDetected.map((issue, index) => (
-                <IssueCard key={`${issue.issueType}-${index}`} issue={issue} />
-              ))}
-            </div>
-          )}
-
-          {hallucinationDetail.claimVerifications.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">Claim Verification</h4>
-              <div className="space-y-3">
-                {hallucinationDetail.claimVerifications.map((verification, index) => (
-                  <ClaimVerificationCard key={`claim-verification-${index}`} verification={verification} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {hallucinationDetail.citationAnalysis.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">Citation Review</h4>
-              <div className="grid gap-3">
-                {hallucinationDetail.citationAnalysis.map((citation, index) => (
-                  <div
-                    key={`${citation.citation}-${index}`}
-                    className="rounded-2xl border border-info/40 bg-info/10 p-4 text-sm space-y-2"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="border-info text-info">
-                        {citation.citation}
-                      </Badge>
-                      <RiskBadge label={citation.riskLevel} />
-                      <span className="text-xs text-muted-foreground">Completeness {citation.completenessScore}/10</span>
-                    </div>
-                    <p className="text-foreground/90 text-sm">{citation.assessment}</p>
-                    <p className="text-xs text-muted-foreground">{citation.explanation}</p>
+              {hallucinationDetail.issuesDetected.length === 0 ? (
+                <div className="rounded-2xl border border-success/40 bg-success/10 p-4 text-sm text-success">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <CheckCircle className="h-4 w-4" />
+                    No hallucination issues detected
                   </div>
-                ))}
+                  <p className="text-xs text-success/90 mt-1">{hallucinationDetail.reasoning}</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {hallucinationDetail.issuesDetected.map((issue, index) => (
+                    <IssueCard key={`${issue.issueType}-${index}`} issue={issue} />
+                  ))}
+                </div>
+              )}
+
+              {hallucinationDetail.claimVerifications.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-foreground">Claim Verification</h4>
+                  <div className="space-y-3">
+                    {hallucinationDetail.claimVerifications.map((verification, index) => (
+                      <ClaimVerificationCard key={`claim-verification-${index}`} verification={verification} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hallucinationDetail.citationAnalysis.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-foreground">Citation Review</h4>
+                  <div className="grid gap-3">
+                    {hallucinationDetail.citationAnalysis.map((citation, index) => (
+                      <div
+                        key={`${citation.citation}-${index}`}
+                        className="rounded-2xl border border-info/40 bg-info/10 p-4 text-sm space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="border-info text-info">
+                            {citation.citation}
+                          </Badge>
+                          <RiskBadge label={citation.riskLevel} />
+                          <span className="text-xs text-muted-foreground">Completeness {citation.completenessScore}/10</span>
+                        </div>
+                        <p className="text-foreground/90 text-sm">{citation.assessment}</p>
+                        <p className="text-xs text-muted-foreground">{citation.explanation}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="compliance">
+            <AccordionTrigger className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3 text-left text-base font-semibold">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                Compliance Flags
               </div>
-            </div>
-          )}
-        </section>
-
-        <Separator />
-
-        <section className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning/20">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">Compliance Flags</h3>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4 rounded-2xl border border-border/50 bg-card/70 p-4">
               <p className="text-xs text-muted-foreground">
                 Score {compliance.detail.complianceScore} · {compliance.detail.overallStatus}
               </p>
-            </div>
-          </div>
 
-          {phiViolations.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">PHI Pattern Violations</h4>
-              {phiViolations.map((violation, index) => (
-                <div
-                  key={`${violation.type}-${index}`}
-                  className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm space-y-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <RiskBadge label={violation.severity} />
-                    <span className="font-medium">{violation.type}</span>
-                    <span className="text-xs text-muted-foreground">Count: {violation.count}</span>
-                  </div>
-                  {violation.remediation && (
-                    <p className="text-xs text-muted-foreground">
-                      Remediation: {violation.remediation}
-                    </p>
-                  )}
+              {phiViolations.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-foreground">PHI Pattern Violations</h4>
+                  {phiViolations.map((violation, index) => (
+                    <div
+                      key={`${violation.type}-${index}`}
+                      className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm space-y-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <RiskBadge label={violation.severity} />
+                        <span className="font-medium">{violation.type}</span>
+                        <span className="text-xs text-muted-foreground">Count: {violation.count}</span>
+                      </div>
+                      {violation.remediation && (
+                        <p className="text-xs text-muted-foreground">Remediation: {violation.remediation}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {fdaViolations.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">FDA Regulatory Violations</h4>
-              {fdaViolations.map((violation) => (
-                <ViolationCard key={violation.id} violation={violation} />
-              ))}
-            </div>
-          )}
+              {fdaViolations.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-foreground">FDA Regulatory Violations</h4>
+                  {fdaViolations.map((violation) => (
+                    <ViolationCard key={violation.id} violation={violation} />
+                  ))}
+                </div>
+              )}
 
-          {compliance.detail.fdaCompliance.fdaAnalysis.offLabelUsesWithoutDisclosure?.length > 0 && (
-            <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 text-xs text-muted-foreground">
-              <strong>Off-label uses:</strong> {compliance.detail.fdaCompliance.fdaAnalysis.offLabelUsesWithoutDisclosure.join(", ")}
-            </div>
-          )}
+              {compliance.detail.fdaCompliance.fdaAnalysis.offLabelUsesWithoutDisclosure?.length > 0 && (
+                <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 text-xs text-muted-foreground">
+                  <strong>Off-label uses:</strong> {compliance.detail.fdaCompliance.fdaAnalysis.offLabelUsesWithoutDisclosure.join(", ")}
+                </div>
+              )}
 
-          {compliance.detail.fdaCompliance.fdaAnalysis.falseEfficacyClaims?.length > 0 && (
-            <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-xs text-muted-foreground space-y-1">
-              <strong>False efficacy claims:</strong>
-              <ul className="list-disc pl-6 space-y-1">
-                {compliance.detail.fdaCompliance.fdaAnalysis.falseEfficacyClaims.map((claim, index) => (
-                  <li key={`claim-${index}`}>{claim}</li>
+              {compliance.detail.fdaCompliance.fdaAnalysis.falseEfficacyClaims?.length > 0 && (
+                <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-xs text-muted-foreground space-y-1">
+                  <strong>False efficacy claims:</strong>
+                  <ul className="list-disc pl-6 space-y-1">
+                    {compliance.detail.fdaCompliance.fdaAnalysis.falseEfficacyClaims.map((claim, index) => (
+                      <li key={`claim-${index}`}>{claim}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          {recommendations.length > 0 && (
+            <AccordionItem value="recommendations">
+              <AccordionTrigger className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3 text-left text-base font-semibold">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-info" />
+                  Recommended Remediations
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 rounded-2xl border border-border/50 bg-card/70 p-4">
+                {recommendations.map((recommendation, index) => (
+                  <RecommendationCard key={`rec-${index}`} recommendation={recommendation} />
                 ))}
-              </ul>
-            </div>
+              </AccordionContent>
+            </AccordionItem>
           )}
-        </section>
-
-        <Separator />
-
-        {recommendations.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info/20">
-                <ShieldCheck className="h-5 w-5 text-info" />
-              </div>
-              <h3 className="text-lg font-semibold">Recommended Remediations</h3>
-            </div>
-            <div className="space-y-3">
-              {recommendations.map((recommendation, index) => (
-                <RecommendationCard key={`rec-${index}`} recommendation={recommendation} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {compliance.detail.regulatoryCompliance.violations?.length > 0 && (
-          <section className="space-y-2 text-xs text-muted-foreground">
-            <Separator />
-            <h4 className="text-sm font-semibold text-foreground">Regulatory Notes</h4>
-            <ul className="list-disc pl-6 space-y-1">
-              {compliance.detail.regulatoryCompliance.violations.map((violation, index) => (
-                <li key={`reg-${index}`}>{String(violation)}</li>
-              ))}
-            </ul>
-          </section>
-        )}
+        </Accordion>
       </CardContent>
     </Card>
   );

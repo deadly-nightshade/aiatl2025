@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AIResponse } from "@/types/ai";
+import { formatESTTime } from "@/lib/time";
 
 interface AIResponseInputProps {
   responses: AIResponse[];
@@ -51,7 +52,7 @@ export function AIResponseInput({
 
   const formatTimestamp = (iso: string) => {
     try {
-      return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return formatESTTime(iso);
     } catch {
       return "—";
     }

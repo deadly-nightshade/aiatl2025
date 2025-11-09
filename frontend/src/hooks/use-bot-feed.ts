@@ -38,6 +38,22 @@ function determineStatusFromReport(report: ComplianceReport): AIResponse["status
   return "verified";
 }
 
+const STATUS_PRIORITY: Record<AIResponse["status"] | "unknown", number> = {
+  failed: 5,
+  warning: 4,
+  verified: 3,
+  verifying: 2,
+  pending: 1,
+  unknown: 0,
+};
+
+function preferStatus(existing?: AIResponse["status"], incoming?: AIResponse["status"]): AIResponse["status"] | undefined {
+  const existingKey = (existing ?? "unknown") as AIResponse["status"] | "unknown";
+  const incomingKey = (incoming ?? "unknown") as AIResponse["status"] | "unknown";
+
+  return STATUS_PRIORITY[incomingKey] >= STATUS_PRIORITY[existingKey] ? incoming : existing;
+}
+
 export function useBotFeed() {
   const [responses, setResponses] = useState<AIResponse[]>([]);
   const [reports, setReports] = useState<ReportsById>({});
@@ -57,7 +73,11 @@ export function useBotFeed() {
       for (const response of incoming) {
         const existing = merged.get(response.id);
         if (existing) {
-          merged.set(response.id, { ...existing, ...response });
+          merged.set(response.id, {
+            ...existing,
+            ...response,
+            status: preferStatus(existing.status, response.status) ?? response.status ?? existing.status,
+          });
         } else {
           merged.set(response.id, response);
         }
@@ -76,7 +96,7 @@ export function useBotFeed() {
   const fetchReportIfReady = useCallback(
     async (response: AIResponse) => {
       if (!isAssistantResponse(response)) return;
-      if (response.status === "pending" || response.status === "verifying") return;
+      if (response.status === "failed") return;
 
       try {
         const report = await fetchComplianceReport(response.id);
@@ -114,10 +134,14 @@ export function useBotFeed() {
 
       for (const response of enriched) {
         if (isAssistantResponse(response)) {
+          const adjustedResponse =
+            response.status === "pending" ? { ...response, status: "verifying" as AIResponse["status"] } : response;
+
           if (response.status === "pending") {
             updateResponse(response.id, (current) => ({ ...current, status: "verifying" }));
           }
-          fetchReportIfReady(response);
+
+          void fetchReportIfReady(adjustedResponse);
         }
       }
     } catch (pollError) {
@@ -130,15 +154,36 @@ export function useBotFeed() {
     }
   }, [fetchReportIfReady, mergeResponses, updateResponse]);
 
-  const manualRefresh = useCallback(async () => {
-    await pullBotOutputs();
+  const manualRefresh = useCallback(() => {
+    void pullBotOutputs();
+  }, [pullBotOutputs]);
 
-    await Promise.all(
-      responses
-        .filter((response) => isAssistantResponse(response) && response.status !== "failed")
-        .map((response) => fetchReportIfReady(response)),
+  useEffect(() => {
+    if (!isMounted.current) return;
+
+    setResponses((prev) =>
+      prev.map((response) => {
+        if (!isAssistantResponse(response)) {
+          return response;
+        }
+
+        const report = reports[response.id];
+        if (!report) {
+          return response;
+        }
+
+        const targetStatus = determineStatusFromReport(report);
+        if (response.status === targetStatus) {
+          return response;
+        }
+
+        return {
+          ...response,
+          status: targetStatus,
+        };
+      }),
     );
-  }, [fetchReportIfReady, pullBotOutputs, responses]);
+  }, [reports]);
 
   useEffect(() => {
     isMounted.current = true;

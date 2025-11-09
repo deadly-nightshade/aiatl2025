@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { RefreshCcw } from "lucide-react";
 
 import { ComplianceReport } from "@/components/ComplianceReport";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -8,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBotFeed } from "@/hooks/use-bot-feed";
 import { toast } from "@/hooks/use-toast";
 import type { AIResponse, AIRole, ComplianceReport as ComplianceReportType } from "@/types/ai";
+import { formatESTDateTime, formatESTTime } from "@/lib/time";
 
 interface Interaction {
   key: string;
@@ -266,32 +268,36 @@ export default function Index() {
       verified: 0,
       warning: 0,
       failed: 0,
-      verifying: 0,
-      pending: 0,
+      inReview: 0,
     };
 
     assistantResponses.forEach((response) => {
-      switch (response.status) {
-        case "verified":
-          counters.verified += 1;
-          break;
-        case "warning":
-          counters.warning += 1;
-          break;
-        case "failed":
-          counters.failed += 1;
-          break;
-        case "verifying":
-          counters.verifying += 1;
-          break;
-        default:
-          counters.pending += 1;
-          break;
+      const normalizedStatus = (response.status ?? "pending").toLowerCase();
+      const hasReport = Boolean(reports[response.id]);
+
+      if (normalizedStatus === "warning") {
+        counters.warning += 1;
+        return;
       }
+      if (normalizedStatus === "failed") {
+        counters.failed += 1;
+        return;
+      }
+      if (normalizedStatus === "verified" || normalizedStatus === "completed") {
+        counters.verified += 1;
+        return;
+      }
+
+      if (!hasReport) {
+        counters.inReview += 1;
+        return;
+      }
+
+      counters.verified += 1;
     });
 
     return counters;
-  }, [assistantResponses]);
+  }, [assistantResponses, reports]);
 
   const topInteractions = useMemo(() => {
     if (interactions.length === 0) return [] as Interaction[];
@@ -326,10 +332,10 @@ export default function Index() {
     const roleStyle = ROLE_STYLES[role];
     const showStatus = role === "assistant";
     const statusDisplay = showStatus ? getStatusDisplay(entry.status) : null;
-    const timestamp = new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const timestamp = formatESTTime(entry.createdAt);
 
     const report = options.report ?? undefined;
-    const reportGeneratedAt = report ? new Date(report.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
+    const reportGeneratedAt = report ? formatESTTime(report.timestamp) : null;
     const hallucinationIssueCount = report?.analysis?.hallucinationAnalysis?.detail?.issuesDetected?.length ?? 0;
     const fdaViolationCount = report?.analysis?.complianceAnalysis?.detail?.fdaCompliance?.fdaAnalysis?.violations?.length ?? 0;
     const phiViolationCount = report?.analysis?.complianceAnalysis?.detail?.phiViolations?.patternViolations?.length ?? 0;
@@ -353,18 +359,14 @@ export default function Index() {
             </span>
           )}
         </div>
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{entry.content}</p>
+        <div className="max-h-40 overflow-y-auto rounded-xl border border-border/30 bg-background/80 p-3">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{entry.content}</p>
+        </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground/80">
           <span>{timestamp}</span>
           {role === "assistant" && typeof entry.confidence === "number" && <span>Confidence {entry.confidence}%</span>}
-          {role === "assistant" && report && reportGeneratedAt && (
-            <span>Verified {reportGeneratedAt}</span>
-          )}
-          {role === "assistant" && totalFindings > 0 && (
-            <span>
-              Findings: {totalFindings}
-            </span>
-          )}
+          {role === "assistant" && report && reportGeneratedAt && <span>Verified {reportGeneratedAt}</span>}
+          {role === "assistant" && totalFindings > 0 && <span>Findings: {totalFindings}</span>}
         </div>
       </div>
     );
@@ -481,15 +483,6 @@ export default function Index() {
                     </p>
                   </div>
                   <div className="rounded-2xl border border-border/40 bg-background/70 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">In review</p>
-                    <p className="mt-2 text-3xl font-semibold text-info">
-                      {verificationStats.verifying + verificationStats.pending}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground/70">
-                      Responses currently being checked or queued by middleware.
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border/40 bg-background/70 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
                       Failed checks
                     </p>
@@ -509,18 +502,11 @@ export default function Index() {
                   <CardDescription>Live view of the latest chatbot response moving through compliance checks</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  {lastUpdated && (
-                    <span className="text-xs text-muted-foreground/80">
-                      Updated {new Date(lastUpdated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full px-3"
-                    onClick={refresh}
-                    disabled={isPolling}
-                  >
+                  <span className="text-xs text-muted-foreground">
+                    Updated {lastUpdated ? formatESTTime(lastUpdated) : "—"}
+                  </span>
+                  <Button className="rounded-full px-3" onClick={refresh} variant="outline">
+                    <RefreshCcw className={`mr-2 h-4 w-4 ${isPolling ? "animate-spin" : ""}`} />
                     Refresh
                   </Button>
                 </div>
@@ -563,12 +549,7 @@ export default function Index() {
                           <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                               <CardTitle className="text-base text-foreground">
-                                {new Date(interactionTimestamp(interaction)).toLocaleString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
+                                {formatESTDateTime(interactionTimestamp(interaction))}
                               </CardTitle>
                               {interaction.assistant ? (
                                 <CardDescription className="capitalize">
@@ -630,11 +611,7 @@ export default function Index() {
                         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <CardTitle className="text-base text-foreground">
-                              Captured{" "}
-                              {new Date(interactionTimestamp(interaction)).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              Captured {formatESTTime(interactionTimestamp(interaction))}
                             </CardTitle>
                           </div>
                         </CardHeader>
