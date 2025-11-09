@@ -15,8 +15,6 @@ MedGuard AI is a full-stack application that monitors, analyzes, and verifies me
 - 🔍 **Hallucination Detection**: Automatically detects potential hallucinations in LLM outputs using real-time web verification
 - 📚 **Citation Verification**: Validates citations against PubMed, DOI, and web sources
 - 🛡️ **HIPAA Compliance**: Ensures medical content meets HIPAA and FDA compliance standards
-- 📊 **Real-time Monitoring**: Live dashboard showing verification status and detailed compliance reports
-- 🔄 **Background Processing**: Non-blocking analysis that doesn't disrupt chatbot flow
 - 📝 **Audit Trail**: Complete history of all prompts, responses, and verification results
 
 ## 🏗️ Architecture
