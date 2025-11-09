@@ -2,7 +2,15 @@ import { AlertTriangle, CheckCircle, ExternalLink, FileText, Loader2, ShieldAler
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import type { AIResponse, ComplianceReport as ComplianceReportData, HallucinationIssue, FdaViolation, ComplianceRecommendation } from "@/types/ai";
+import type {
+  AIResponse,
+  ComplianceReport as ComplianceReportData,
+  HallucinationIssue,
+  FdaViolation,
+  ComplianceRecommendation,
+  ClaimVerification,
+} from "@/types/ai";
+import { formatESTDateTime } from "@/lib/time";
 
 interface ComplianceReportProps {
   report?: ComplianceReportData | null;
@@ -77,6 +85,40 @@ function RecommendationCard({ recommendation }: { recommendation: ComplianceReco
         <p className="text-xs text-muted-foreground">
           Regulation: {recommendation.regulationReference}
         </p>
+      )}
+    </div>
+  );
+}
+
+function ClaimVerificationCard({ verification }: { verification: ClaimVerification }) {
+  const status = verification.verificationStatus?.toUpperCase?.() ?? "UNKNOWN";
+  return (
+    <div className="rounded-2xl border border-border/60 bg-background/80 p-4 text-sm space-y-2">
+      <div className="flex flex-wrap items-center gap-2 font-semibold text-foreground">
+        <Badge variant="outline" className="uppercase tracking-wide">
+          {status}
+        </Badge>
+        <span>{verification.claim}</span>
+        <span className="text-xs text-muted-foreground">Confidence {verification.confidence ?? 0}%</span>
+      </div>
+      <p className="text-sm text-foreground/90">{verification.evidence}</p>
+      {verification.sources.length > 0 && (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <strong>Sources:</strong>
+          <ul className="list-disc pl-5 space-y-1">
+            {verification.sources.map((source, index) => (
+              <li key={`${verification.claim}-src-${index}`}>
+                {source.url ? (
+                  <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-info hover:underline">
+                    {source.title ?? source.url}
+                  </a>
+                ) : (
+                  <span>{source.title}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
@@ -186,48 +228,10 @@ export function ComplianceReport({ report = null, response = null, isLoading = f
           Compliance & Hallucination Report
         </CardTitle>
         <CardDescription className="text-xs sm:text-sm">
-          Generated {new Date(timestamp).toLocaleString()} · Prompt {inputSummary.promptLength} chars · Output {inputSummary.outputLength} chars
+          Generated {formatESTDateTime(timestamp)}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8 p-6">
-        {response && (
-          <div className="rounded-2xl border border-border/60 bg-background/70 p-4 text-sm space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="uppercase tracking-wide">
-                {response.status}
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                Captured {new Date(response.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </span>
-            </div>
-            <p className="text-sm text-foreground/90 whitespace-pre-wrap">{response.content}</p>
-          </div>
-        )}
-
-        <section className="rounded-2xl border border-border/50 bg-card/70 p-5 shadow-inner space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <RiskBadge label={overallRiskLabel} />
-            <Badge variant="outline" className="border-primary text-primary">
-              Hallucination risk: {hallucinationRiskLabel}
-            </Badge>
-            <Badge variant="outline" className="border-muted-foreground text-muted-foreground">
-              Compliance score: {complianceScoreValue}
-            </Badge>
-            <Badge variant="outline" className="border-secondary text-secondary-foreground">
-              Compliance status: {complianceStatusLabel}
-            </Badge>
-          </div>
-          <p className="text-lg font-semibold text-foreground">{combined.recommendation}</p>
-          <p className="text-sm text-muted-foreground">{combined.summary}</p>
-          {combined.riskFactors?.length > 0 && (
-            <ul className="list-disc pl-6 text-xs text-muted-foreground space-y-1">
-              {combined.riskFactors.map((factor, index) => (
-                <li key={`risk-${index}`}>{factor}</li>
-              ))}
-            </ul>
-          )}
-        </section>
-
         <Separator />
 
         <section className="space-y-4">
@@ -259,9 +263,19 @@ export function ComplianceReport({ report = null, response = null, isLoading = f
             </div>
           )}
 
+          {hallucinationDetail.claimVerifications.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-foreground">Claim Verification</h4>
+              <div className="space-y-3">
+                {hallucinationDetail.claimVerifications.map((verification, index) => (
+                  <ClaimVerificationCard key={`claim-verification-${index}`} verification={verification} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {hallucinationDetail.citationAnalysis.length > 0 && (
             <div className="space-y-3">
-              <Separator />
               <h4 className="text-sm font-semibold text-foreground">Citation Review</h4>
               <div className="grid gap-3">
                 {hallucinationDetail.citationAnalysis.map((citation, index) => (
@@ -378,13 +392,6 @@ export function ComplianceReport({ report = null, response = null, isLoading = f
               ))}
             </ul>
           </section>
-        )}
-
-        {hallucinationDetail.timestamp && (
-          <p className="text-xs text-muted-foreground">Hallucination audit: {new Date(hallucinationDetail.timestamp).toLocaleString()}</p>
-        )}
-        {compliance.detail.timestamp && (
-          <p className="text-xs text-muted-foreground">Compliance audit: {new Date(compliance.detail.timestamp).toLocaleString()}</p>
         )}
       </CardContent>
     </Card>

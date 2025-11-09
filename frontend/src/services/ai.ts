@@ -123,10 +123,10 @@ function toNumber(value: unknown, fallback = 0): number {
 }
 
 function mapHallucinationAnalysis(raw: any): HallucinationAnalysisResult {
-  const detail = raw?.hallucination_analysis ?? {};
+  const detail = raw?.hallucination_analysis ?? raw?.result?.hallucination_analysis ?? raw ?? {};
   return {
-    task: raw?.task ?? "",
-    status: raw?.status ?? "unknown",
+    task: raw?.task ?? raw?.result?.task ?? "",
+    status: raw?.status ?? raw?.result?.status ?? "unknown",
     detail: {
       confidenceScore: toNumber(detail.confidence_score),
       reasoning: detail.reasoning ?? "",
@@ -146,6 +146,20 @@ function mapHallucinationAnalysis(raw: any): HallucinationAnalysisResult {
             riskLevel: citation?.risk_level ?? "UNKNOWN",
             explanation: citation?.explanation ?? "",
             completenessScore: toNumber(citation?.completeness_score),
+          }))
+        : [],
+      claimVerifications: Array.isArray(detail.claim_verifications)
+        ? detail.claim_verifications.map((claim: any, index: number) => ({
+            claim: claim?.claim ?? `claim_${index}`,
+            verificationStatus: claim?.verification_status ?? "UNKNOWN",
+            evidence: claim?.evidence ?? "",
+            confidence: toNumber(claim?.confidence),
+            sources: Array.isArray(claim?.sources)
+              ? claim.sources.map((source: any) => ({
+                  title: source?.title,
+                  url: source?.url,
+                }))
+              : [],
           }))
         : [],
       riskLevel: detail.risk_level ?? "UNKNOWN",
