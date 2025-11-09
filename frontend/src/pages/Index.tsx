@@ -443,11 +443,10 @@ export default function Index() {
                       Bot Middleware Monitor
                     </span>
                     <h1 className="mt-4 text-4xl font-bold leading-tight text-foreground md:text-5xl lg:text-6xl">
-                      Compliance Stream for GPT-5
+                      MedGuard AI
                     </h1>
                     <p className="mt-3 max-w-xl text-base text-muted-foreground md:text-lg">
-                      Observe automated outputs, track verification status, and review compliance findings in real time.
-                      Monitor the flow end-to-end, from user prompts to assistant responses.
+                      Ensuring every AI answer meets clinical standards.
                     </p>
                   </div>
                 </div>
@@ -464,17 +463,13 @@ export default function Index() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm leading-relaxed text-muted-foreground">
-                  <p>- Ingest prompts and responses from the chatbot running on port 7001 and store them centrally.</p>
-                  <p>- Trigger the FastAPI pipeline to run hallucination and compliance analysis for each answer.</p>
-                  <p>- Surface verification progress so you can jump into history or final reports as needed.</p>
+                    <p>- <strong>Seamless Capture:</strong> Automatically collects prompts and responses from your local GPT instance (port 7001) and securely stores them in a central dashboard.</p>
+                    <p>- <strong>Intelligent Analysis:</strong> Instantly triggers our FastAPI pipeline to run <em>hallucination detection</em> and <em>compliance validation</em> on each response.</p>
+                    <p>- <strong>Transparent Oversight:</strong> Tracks verification progress and lets you easily navigate to <em>detailed reports</em> or <em>historical logs</em> whenever you need insight.</p>
                 </CardContent>
               </Card>
 
               <Card className="border border-border/60 bg-card/80 backdrop-blur">
-                <CardHeader>
-                  <CardTitle>Verification summary</CardTitle>
-                  <CardDescription>Snapshot of assistant responses moving through middleware right now</CardDescription>
-                </CardHeader>
                 <CardContent className="grid gap-4 text-sm text-muted-foreground sm:grid-cols-2">
                   <div className="rounded-2xl border border-border/40 bg-background/70 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">Verified</p>
