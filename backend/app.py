@@ -1,4 +1,5 @@
 import uuid
+import logging
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,6 +12,13 @@ from agents.gemini_agent import GeminiAgent
 from agents.base_agent import AgentManager
 from agents.hallucination_guard import HallucinationGuardAgent
 from agents.compliance_checker import ComplianceCheckerAgent
+
+# Configure logging before anything else
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+logger = logging.getLogger("medguard.app")
 
 # Load environment variables
 load_dotenv()
@@ -134,7 +142,8 @@ async def generate_report(request: ReportRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Background task for analysis
-async def analyze_and_update(response_id: str, prompt: str, assistant_response: str):
+def analyze_and_update(response_id: str, prompt: str, assistant_response: str):
+    logger.info("Starting background analysis", extra={"response_id": response_id})
     try:
         report = run_full_analysis(prompt, assistant_response)
         bot_reports[response_id] = report
@@ -146,8 +155,17 @@ async def analyze_and_update(response_id: str, prompt: str, assistant_response: 
                 entry.setdefault("metadata", {})["reportKey"] = response_id
                 entry.setdefault("metadata", {})["reportId"] = report["report_id"]
                 entry["updatedAt"] = datetime.utcnow().isoformat()
+                logger.info(
+                    "Background analysis complete",
+                    extra={
+                        "response_id": response_id,
+                        "status": entry["status"],
+                        "risk": report["analysis"]["combined_assessment"].get("overall_risk_level"),
+                    },
+                )
                 break
     except Exception as err:
+        logger.exception("Background analysis failed", extra={"response_id": response_id})
         for entry in bot_outputs:
             if entry["id"] == response_id:
                 entry["status"] = "failed"
@@ -334,6 +352,11 @@ async def ingest_bot_output(request: BotOutputRequest, background_tasks: Backgro
     }
 
     bot_outputs.extend([user_entry, assistant_entry])
+
+    logger.info(
+        "Queued new assistant response for verification",
+        extra={"response_id": assistant_id, "pair_id": conversation_id},
+    )
 
     background_tasks.add_task(
         analyze_and_update,
