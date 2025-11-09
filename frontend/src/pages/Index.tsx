@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Brain, Database, RefreshCcw, ShieldCheck } from "lucide-react";
 
 import { ComplianceReport } from "@/components/ComplianceReport";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -405,7 +404,7 @@ export default function Index() {
       <div className="container relative mx-auto px-4 py-10">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <nav className="flex w-full justify-center">
-            <div className="flex w-full max-w-4xl items-center justify-between rounded-full border border-border/50 bg-card/70 px-6 py-3 shadow-lg backdrop-blur">
+            <div className="flex w-full max-w-4xl items-center justify-center rounded-full border border-border/50 bg-card/70 px-6 py-3 shadow-lg backdrop-blur">
               <div className="flex flex-1 justify-center">
                 <TabsList className="flex max-w-md flex-1 justify-center gap-3 rounded-full bg-transparent p-0">
                   <TabsTrigger value="overview" className="flex-1 rounded-full px-4 py-2">
@@ -418,9 +417,6 @@ export default function Index() {
                     Reports
                   </TabsTrigger>
                 </TabsList>
-              </div>
-              <div className="ml-4">
-                <ThemeToggle />
               </div>
             </div>
           </nav>
