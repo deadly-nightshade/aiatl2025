@@ -52,12 +52,22 @@ class HallucinationGuardAgent(BaseAgent):
             verified_claims = []
             for claim in claims:
                 verification_result = self.verify_claim_with_mcp(claim)
+                status = verification_result.get("verification_status", "UNKNOWN")
+                confidence = verification_result.get("confidence", 0)
+                sources = verification_result.get("sources", [])
+
+                if status == "SUPPORTED" and not sources:
+                    verification_result["verification_status"] = "NOT_ADDRESSED"
+                    verification_result["evidence"] = "No supporting sources were retrieved despite SUPPORT status."
+                    verification_result["confidence"] = min(confidence, 40)
+
                 logger.info(
                     "Claim verification result",
                     extra={
                         "claim": claim,
                         "status": verification_result.get("verification_status"),
                         "confidence": verification_result.get("confidence"),
+                        "source_count": len(verification_result.get("sources", [])),
                     },
                 )
                 verified_claims.append(verification_result)
@@ -313,9 +323,9 @@ class HallucinationGuardAgent(BaseAgent):
         try:
             if not fetched_content:
                 return {
-                    "status": "No Content Found",
+                    "status": "NOT_ADDRESSED",
                     "evidence": "No web content could be retrieved for verification",
-                    "confidence": 0
+                    "confidence": 20
                 }
             
             # Combine content from sources
@@ -439,6 +449,14 @@ class HallucinationGuardAgent(BaseAgent):
                     "evidence": claim,
                     "risk_level": "HIGH",
                     "explanation": "Could not find web sources to verify this claim"
+                })
+            elif status in {'NOT_ADDRESSED', 'INSUFFICIENT_INFO'}:
+                issues.append({
+                    "issue_type": "Unresolved Claim",
+                    "description": "Verification sources did not directly address the claim",
+                    "evidence": claim,
+                    "risk_level": "MEDIUM",
+                    "explanation": f"Verification did not directly support or contradict the claim. Evidence: {evidence}"
                 })
             elif status == 'Verification Error':
                 issues.append({
