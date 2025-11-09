@@ -18,6 +18,19 @@ export interface AIResponse extends BotOutputPayload {
   verifiedAt?: string;
 }
 
+export interface ClaimVerificationSource {
+  title?: string;
+  url?: string;
+}
+
+export interface ClaimVerification {
+  claim: string;
+  verificationStatus: string;
+  evidence: string;
+  confidence: number;
+  sources: ClaimVerificationSource[];
+}
+
 export interface HallucinationIssue {
   issueType: string;
   description: string;
@@ -39,6 +52,7 @@ export interface HallucinationAnalysisDetail {
   reasoning: string;
   issuesDetected: HallucinationIssue[];
   citationAnalysis: CitationAssessment[];
+  claimVerifications: ClaimVerification[];
   riskLevel: string;
   totalIssues: number;
   totalCitations: number;

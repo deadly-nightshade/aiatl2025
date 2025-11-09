@@ -79,15 +79,17 @@ def run_full_analysis(original_prompt: str, llm_output: str) -> Dict[str, Any]:
         "llm_output": llm_output,
     }
 
-    hallucination_result = hallucination_guard.execute_task(
+    raw_hallucination_result = hallucination_guard.execute_task(
         "hallucination_detection",
         context,
     )
+    hallucination_result = raw_hallucination_result.get("result", raw_hallucination_result)
 
-    compliance_result = compliance_checker.execute_task(
+    raw_compliance_result = compliance_checker.execute_task(
         "compliance_check",
         context,
     )
+    compliance_result = raw_compliance_result.get("result", raw_compliance_result)
 
     combined_assessment = generate_combined_assessment(
         hallucination_result,
