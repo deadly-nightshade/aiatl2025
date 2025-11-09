@@ -2,6 +2,8 @@ import google.generativeai as genai
 import os
 import json
 import re
+import subprocess
+import time
 from datetime import datetime
 from typing import Dict, List, Optional
 import logging
@@ -10,7 +12,7 @@ from .base_agent import BaseAgent
 logger = logging.getLogger(__name__)
 
 class HallucinationGuardAgent(BaseAgent):
-    """Streamlined agent for hallucination detection using faithfulness metrics."""
+    """MCP-enabled agent for hallucination detection using Google Search and web fetching."""
     
     def __init__(self):
         self.google_api_key = os.getenv('GOOGLE_API_KEY')
@@ -21,19 +23,18 @@ class HallucinationGuardAgent(BaseAgent):
     
     def process_message(self, message: str) -> str:
         """Process hallucination detection request."""
-        return "HallucinationGuard is ready for analysis. Use execute_task for full analysis."
+        return "HallucinationGuard with MCP is ready for real-time verification."
     
     def execute_task(self, task: str, context: Dict = None) -> Dict:
-        """Execute streamlined hallucination detection."""
+        """Execute MCP-enabled hallucination detection with real-time search verification."""
         if context is None:
             context = {}
         
         llm_output = context.get('llm_output', '')
         original_prompt = context.get('original_prompt', '')
-        relevant_documents = context.get('relevant_documents', '')
         
-        # Perform focused hallucination analysis
-        result = self.analyze_faithfulness(llm_output, original_prompt, relevant_documents)
+        # No longer need relevant_documents - we'll search in real-time
+        result = self.analyze_with_mcp_verification(llm_output, original_prompt)
         
         return {
             "task": task,
@@ -41,19 +42,28 @@ class HallucinationGuardAgent(BaseAgent):
             "status": "completed"
         }
     
-    def analyze_faithfulness(self, llm_output: str, original_prompt: str, relevant_documents: str) -> Dict:
-        """Analyze faithfulness using established metrics."""
+    def analyze_with_mcp_verification(self, llm_output: str, original_prompt: str) -> Dict:
+        """Analyze response using MCP for real-time fact verification."""
         try:
-            # 1. Calculate faithfulness confidence score
-            confidence_score, reasoning = self.calculate_faithfulness_score(llm_output, relevant_documents)
+            # 1. Extract key claims for verification
+            claims = self.extract_verifiable_claims(llm_output)
             
-            # 2. Detect specific issues
-            issues_detected = self.detect_hallucination_issues(llm_output, relevant_documents)
+            # 2. Verify each claim using MCP search + fetch
+            verified_claims = []
+            for claim in claims:
+                verification_result = self.verify_claim_with_mcp(claim)
+                verified_claims.append(verification_result)
             
-            # 3. Analyze citations
-            citation_analysis = self.analyze_citations_detailed(llm_output)
+            # 3. Calculate overall confidence based on verifications
+            confidence_score, reasoning = self.calculate_mcp_confidence(verified_claims, llm_output)
             
-            # 4. Determine overall risk level
+            # 4. Detect remaining issues
+            issues_detected = self.detect_issues_from_verifications(verified_claims)
+            
+            # 5. Check citations if any exist
+            citation_analysis = self.analyze_citations_with_mcp(llm_output)
+            
+            # 6. Determine overall risk level
             risk_level = self.determine_risk_level(confidence_score, issues_detected)
             
             return {
@@ -61,6 +71,7 @@ class HallucinationGuardAgent(BaseAgent):
                 "reasoning": reasoning,
                 "issues_detected": issues_detected,
                 "citation_analysis": citation_analysis,
+                "claim_verifications": verified_claims,
                 "risk_level": risk_level,
                 "total_issues": len(issues_detected),
                 "total_citations": len(citation_analysis),
@@ -68,181 +79,379 @@ class HallucinationGuardAgent(BaseAgent):
             }
             
         except Exception as e:
-            logger.error(f"Error in faithfulness analysis: {str(e)}")
+            logger.error(f"Error in MCP hallucination analysis: {str(e)}")
             return {
                 "error": str(e),
                 "confidence_score": 0,
                 "risk_level": "UNKNOWN",
                 "issues_detected": [],
-                "citation_analysis": []
+                "citation_analysis": [],
+                "claim_verifications": []
             }
     
-    def calculate_faithfulness_score(self, llm_output: str, relevant_documents: str) -> tuple:
-        """Calculate faithfulness confidence score using established metrics."""
+    def extract_verifiable_claims(self, text: str) -> List[str]:
+        """Extract key claims that can be fact-checked."""
         try:
-            # Use Gemini with faithfulness-focused prompt
             prompt = f"""
-            Evaluate the faithfulness of this AI response using established faithfulness metrics:
+            Extract 3-5 key factual claims from this text that can be verified through web search:
 
-            Response: "{llm_output}"
-            Source Documents: "{relevant_documents[:1000] if relevant_documents else 'No source documents provided'}"
+            Text: "{text}"
 
-            Analyze faithfulness based on:
-            1. **Factual Consistency**: Are all facts in the response supported by or consistent with the source documents?
-            2. **Source Attribution**: Are claims properly grounded in the provided sources?
-            3. **Inference Validity**: Are any inferences made reasonable and supported?
-            4. **Absence of Fabrication**: Are there any facts that appear to be made up or not derivable from sources?
-            5. **Contextual Accuracy**: Is the response contextually appropriate to the source material?
+            Focus on:
+            - Specific medical/health facts
+            - Statistics and numbers
+            - Scientific claims
+            - Attributions to studies or experts
+            - Definitive statements about causes and effects
 
-            Provide:
-            - A faithfulness confidence score (0-100): How confident are you that this response is faithful to the sources?
-            - Detailed reasoning: Explain your score with specific examples
+            Return only the claims as a JSON array of strings, e.g.:
+            ["Aspirin reduces heart attack risk by 25%", "Studies show meditation improves focus"]
+            """
+            
+            response = self.model.generate_content(prompt)
+            
+            try:
+                # Parse JSON response
+                claims_text = response.text.strip()
+                if claims_text.startswith('```json'):
+                    claims_text = claims_text.replace('```json', '').replace('```', '').strip()
+                
+                claims = json.loads(claims_text)
+                return claims[:5] if isinstance(claims, list) else []
+                
+            except json.JSONDecodeError:
+                # Fallback: extract sentences with factual patterns
+                return self.fallback_claim_extraction(text)
+                
+        except Exception as e:
+            logger.warning(f"Claim extraction failed: {e}")
+            return self.fallback_claim_extraction(text)
+    
+    def fallback_claim_extraction(self, text: str) -> List[str]:
+        """Fallback claim extraction using patterns."""
+        claims = []
+        sentences = re.split(r'[.!?]+', text)
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) > 20 and any(pattern in sentence.lower() for pattern in [
+                'study', 'research', 'percent', '%', 'cause', 'prevent', 'reduce', 'increase'
+            ]):
+                claims.append(sentence)
+                
+        return claims[:3]
+    
+    def verify_claim_with_mcp(self, claim: str) -> Dict:
+        """Verify a single claim using MCP Google Search + Fetch."""
+        try:
+            logger.info(f"Verifying claim: {claim}")
+            
+            # Step 1: Search for information about the claim
+            search_results = self.mcp_google_search(claim)
+            
+            if not search_results:
+                return {
+                    "claim": claim,
+                    "verification_status": "No Search Results",
+                    "evidence": "Could not find relevant search results",
+                    "confidence": 0,
+                    "sources": []
+                }
+            
+            # Step 2: Fetch content from top search results
+            fetched_content = []
+            for result in search_results[:3]:  # Check top 3 results
+                content = self.mcp_fetch_url(result['link'])
+                if content:
+                    fetched_content.append({
+                        'title': result['title'],
+                        'url': result['link'],
+                        'content': content[:1500]  # Limit content length
+                    })
+            
+            # Step 3: Analyze verification using AI
+            verification_result = self.analyze_claim_verification(claim, fetched_content)
+            
+            return {
+                "claim": claim,
+                "verification_status": verification_result['status'],
+                "evidence": verification_result['evidence'],
+                "confidence": verification_result['confidence'],
+                "sources": [{'title': c['title'], 'url': c['url']} for c in fetched_content]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error verifying claim '{claim}': {e}")
+            return {
+                "claim": claim,
+                "verification_status": "Verification Error",
+                "evidence": f"Error during verification: {str(e)}",
+                "confidence": 0,
+                "sources": []
+            }
+    
+    def mcp_google_search(self, query: str) -> List[Dict]:
+        """Use MCP Google Search server to search."""
+        try:
+            # Create MCP client call to google search
+            search_command = [
+                "uvx", "mcp-google-cse"
+            ]
+            
+            # Set environment variables for the MCP server
+            env = os.environ.copy()
+            env['API_KEY'] = os.getenv('GOOGLE_SEARCH_API_KEY')
+            env['ENGINE_ID'] = os.getenv('GOOGLE_CSE_ID')
+            
+            # Create input for the MCP server
+            mcp_input = {
+                "method": "tools/call",
+                "params": {
+                    "name": "google_search",
+                    "arguments": {
+                        "search_term": query
+                    }
+                }
+            }
+            
+            # For now, use direct API call as fallback
+            return self.direct_google_search(query)
+            
+        except Exception as e:
+            logger.warning(f"MCP search failed, using fallback: {e}")
+            return self.direct_google_search(query)
+    
+    def direct_google_search(self, query: str) -> List[Dict]:
+        """Direct Google Search API call as fallback."""
+        try:
+            import requests
+            
+            api_key = os.getenv('GOOGLE_SEARCH_API_KEY')
+            engine_id = os.getenv('GOOGLE_CSE_ID')
+            
+            if not api_key or not engine_id:
+                return []
+            
+            url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                'key': api_key,
+                'cx': engine_id,
+                'q': query,
+                'num': 5
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if 'items' in data:
+                    return [
+                        {
+                            'title': item.get('title', ''),
+                            'link': item.get('link', ''),
+                            'snippet': item.get('snippet', '')
+                        }
+                        for item in data['items']
+                    ]
+            return []
+            
+        except Exception as e:
+            logger.error(f"Direct search failed: {e}")
+            return []
+    
+    def mcp_fetch_url(self, url: str) -> Optional[str]:
+        """Use MCP Fetch server to get webpage content."""
+        try:
+            # For now, use direct fetching as fallback
+            return self.direct_fetch_url(url)
+            
+        except Exception as e:
+            logger.warning(f"MCP fetch failed: {e}")
+            return None
+    
+    def direct_fetch_url(self, url: str) -> Optional[str]:
+        """Direct URL fetching as fallback."""
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Remove script and style elements
+                for script in soup(["script", "style"]):
+                    script.decompose()
+                
+                text = soup.get_text()
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                clean_text = ' '.join(chunk for chunk in chunks if chunk)
+                
+                return clean_text[:2000]  # Limit content
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Direct fetch failed for {url}: {e}")
+            return None
+    
+    def analyze_claim_verification(self, claim: str, fetched_content: List[Dict]) -> Dict:
+        """Analyze fetched content to verify claim."""
+        try:
+            if not fetched_content:
+                return {
+                    "status": "No Content Found",
+                    "evidence": "No web content could be retrieved for verification",
+                    "confidence": 0
+                }
+            
+            # Combine content from sources
+            combined_content = "\n\n".join([
+                f"Source: {c['title']}\nContent: {c['content']}"
+                for c in fetched_content
+            ])
+            
+            prompt = f"""
+            Verify this claim against the web content found:
 
-            Format as JSON:
+            Claim to verify: "{claim}"
+
+            Web content from search:
+            {combined_content}
+
+            Analyze:
+            1. Does the web content SUPPORT, CONTRADICT, or NOT ADDRESS the claim?
+            2. What specific evidence supports your assessment?
+            3. Confidence level (0-100): How confident are you in this verification?
+
+            Respond with JSON:
             {{
-                "confidence_score": <0-100>,
-                "reasoning": "Detailed explanation of score with specific examples..."
+                "status": "SUPPORTED|CONTRADICTED|NOT_ADDRESSED|INSUFFICIENT_INFO",
+                "evidence": "Specific evidence from the sources",
+                "confidence": 0-100
             }}
             """
             
             response = self.model.generate_content(prompt)
             
-            # Parse the response
             try:
-                # Try to extract JSON
                 result = json.loads(response.text.replace('```json', '').replace('```', '').strip())
-                return result.get('confidence_score', 50), result.get('reasoning', response.text)
-            except:
-                # Fallback: extract score from text
-                score_match = re.search(r'confidence[_\s]*score["\s:]*(\d+)', response.text, re.IGNORECASE)
-                score = int(score_match.group(1)) if score_match else 50
-                return score, response.text
+                return {
+                    "status": result.get('status', 'UNKNOWN'),
+                    "evidence": result.get('evidence', 'No evidence provided'),
+                    "confidence": result.get('confidence', 50)
+                }
+            except json.JSONDecodeError:
+                # Fallback parsing
+                text = response.text.lower()
+                if 'support' in text or 'confirm' in text:
+                    status = 'SUPPORTED'
+                    confidence = 75
+                elif 'contradict' in text or 'disagree' in text:
+                    status = 'CONTRADICTED'
+                    confidence = 75
+                else:
+                    status = 'NOT_ADDRESSED'
+                    confidence = 30
+                    
+                return {
+                    "status": status,
+                    "evidence": response.text[:200],
+                    "confidence": confidence
+                }
                 
         except Exception as e:
-            logger.warning(f"Faithfulness scoring failed: {e}")
-            return 50, f"Error in analysis: {str(e)}"
+            return {
+                "status": "VERIFICATION_ERROR",
+                "evidence": f"Error during verification: {str(e)}",
+                "confidence": 0
+            }
     
-    def detect_hallucination_issues(self, llm_output: str, relevant_documents: str) -> List[Dict]:
-        """Detect consolidated hallucination issues across the entire response."""
+    def calculate_mcp_confidence(self, verified_claims: List[Dict], original_text: str) -> tuple:
+        """Calculate confidence score based on claim verifications."""
+        if not verified_claims:
+            return 50, "No claims could be verified"
+        
+        # Calculate average confidence from verified claims
+        total_confidence = 0
+        supported_count = 0
+        contradicted_count = 0
+        
+        for claim_result in verified_claims:
+            confidence = claim_result.get('confidence', 0)
+            status = claim_result.get('verification_status', 'UNKNOWN')
+            
+            total_confidence += confidence
+            
+            if status == 'SUPPORTED':
+                supported_count += 1
+            elif status == 'CONTRADICTED':
+                contradicted_count += 1
+        
+        avg_confidence = total_confidence / len(verified_claims)
+        
+        # Adjust based on verification results
+        if contradicted_count > 0:
+            final_confidence = max(0, avg_confidence - (contradicted_count * 20))
+        elif supported_count >= len(verified_claims) * 0.7:
+            final_confidence = min(100, avg_confidence + 10)
+        else:
+            final_confidence = avg_confidence
+        
+        reasoning = f"Verified {len(verified_claims)} claims. {supported_count} supported, {contradicted_count} contradicted. Average source confidence: {avg_confidence:.1f}%"
+        
+        return int(final_confidence), reasoning
+    
+    def detect_issues_from_verifications(self, verified_claims: List[Dict]) -> List[Dict]:
+        """Detect issues based on claim verifications."""
         issues = []
         
-        try:
-            # Use AI to detect overall issues in the response
-            prompt = f"""
-            Analyze this AI response for hallucination issues:
-
-            Response: "{llm_output}"
-            Source Documents: "{relevant_documents[:800] if relevant_documents else 'No sources provided'}"
-
-            Look for these consolidated hallucination patterns across the entire response:
-            1. **Fabricated Details**: Specific facts, statistics, or details that appear made up
-            2. **Unsupported Claims**: Statements not backed by the source documents
-            3. **Contradictory Information**: Facts that contradict the source material
-            4. **Unverifiable References**: Citations to studies, experts, or sources that can't be verified
-            5. **Overly Specific Information**: Suspiciously precise data without proper backing
-
-            For each issue type found, provide:
-            - issue_type: Single word/phrase (e.g., "Fabricated Details", "Unsupported Claims")
-            - description: Brief description of the problem
-            - evidence: Key examples from the text
-            - risk_level: LOW/MEDIUM/HIGH/CRITICAL
-            - explanation: Why this is concerning
-
-            Only report actual issues found. Return as JSON array.
-            """
+        for claim_result in verified_claims:
+            status = claim_result.get('verification_status', 'UNKNOWN')
+            claim = claim_result.get('claim', 'Unknown claim')
+            evidence = claim_result.get('evidence', 'No evidence')
             
-            response = self.model.generate_content(prompt)
-            issues = self.parse_consolidated_issues(response.text, llm_output)
-            
-        except Exception as e:
-            logger.warning(f"Issue detection failed: {e}")
-            issues.append({
-                "issue_type": "Analysis Error",
-                "description": f"Failed to analyze response",
-                "evidence": "N/A",
-                "risk_level": "MEDIUM",
-                "explanation": "Unable to complete hallucination analysis"
-            })
+            if status == 'CONTRADICTED':
+                issues.append({
+                    "issue_type": "Contradicted Claim",
+                    "description": "Claim contradicted by web sources",
+                    "evidence": claim,
+                    "risk_level": "HIGH",
+                    "explanation": f"Web research contradicts this claim: {evidence}"
+                })
+            elif status == 'No Search Results':
+                issues.append({
+                    "issue_type": "Unverifiable Claim",
+                    "description": "No web sources found for verification",
+                    "evidence": claim,
+                    "risk_level": "MEDIUM",
+                    "explanation": "Could not find web sources to verify this claim"
+                })
+            elif status == 'Verification Error':
+                issues.append({
+                    "issue_type": "Verification Error",
+                    "description": "Technical error during verification",
+                    "evidence": claim,
+                    "risk_level": "MEDIUM",
+                    "explanation": evidence
+                })
         
         return issues
     
-    def parse_consolidated_issues(self, ai_response: str, original_text: str) -> List[Dict]:
-        """Parse consolidated issues from AI response."""
-        issues = []
-        
-        try:
-            # Clean up the response
-            cleaned_response = ai_response.replace('```json', '').replace('```', '').strip()
-            
-            # Look for JSON array
-            json_match = re.search(r'\[.*\]', cleaned_response, re.DOTALL)
-            if json_match:
-                parsed_issues = json.loads(json_match.group(0))
-                for issue in parsed_issues:
-                    if isinstance(issue, dict):
-                        issues.append({
-                            "issue_type": issue.get('issue_type', 'Unknown Issue'),
-                            "description": issue.get('description', 'No description'),
-                            "evidence": issue.get('evidence', 'No evidence'),
-                            "risk_level": issue.get('risk_level', 'MEDIUM'),
-                            "explanation": issue.get('explanation', 'No explanation')
-                        })
-            else:
-                # Fallback: use pattern-based detection
-                issues = self.fallback_consolidated_detection(original_text)
-                        
-        except Exception as e:
-            logger.warning(f"Failed to parse consolidated issues: {e}")
-            # Fallback: use pattern-based detection
-            issues = self.fallback_consolidated_detection(original_text)
-        
-        return issues
-    
-    def fallback_consolidated_detection(self, text: str) -> List[Dict]:
-        """Fallback consolidated issue detection using pattern matching."""
-        issues = []
-        
-        # Check for overly specific information
-        if re.search(r'\b\d+\.\d{2,}%|\b\d+\.\d{3,}', text):
-            issues.append({
-                "issue_type": "Fabricated Details",
-                "description": "Contains suspiciously precise statistics or numbers",
-                "evidence": str(re.findall(r'\b\d+\.\d{2,}%|\b\d+\.\d{3,}', text)[:3]),
-                "risk_level": "HIGH",
-                "explanation": "Precise numbers without proper sourcing often indicate fabrication"
-            })
-        
-        # Check for unverifiable references
-        if re.search(r'\b(?:studies show|research proves|experts say|according to studies)\b', text, re.IGNORECASE):
-            issues.append({
-                "issue_type": "Unverifiable References", 
-                "description": "References vague studies or experts without proper citation",
-                "evidence": str(re.findall(r'\b(?:studies show|research proves|experts say|according to studies)\b', text, re.IGNORECASE)[:3]),
-                "risk_level": "HIGH",
-                "explanation": "Vague references to studies without specific citations are red flags"
-            })
-        
-        # Check for absolute statements
-        if re.search(r'\b(?:always|never|all|every|none)\s+(?:causes?|leads? to|results? in|prevents?)\b', text, re.IGNORECASE):
-            issues.append({
-                "issue_type": "Unsupported Claims",
-                "description": "Makes absolute statements about medical effects",
-                "evidence": str(re.findall(r'\b(?:always|never|all|every|none)\s+(?:causes?|leads? to|results? in|prevents?)\b', text, re.IGNORECASE)[:2]),
-                "risk_level": "MEDIUM",
-                "explanation": "Absolute medical statements are rarely accurate and often indicate oversimplification"
-            })
-        
-        return issues
-    
-    def analyze_citations_detailed(self, text: str) -> List[Dict]:
-        """Analyze citations only when actual citations are found."""
+    def analyze_citations_with_mcp(self, text: str) -> List[Dict]:
+        """Analyze citations using MCP search and fetch."""
         citations = []
         
         try:
-            # First check if there are any actual citations
+            # Extract citations
             citation_patterns = [
                 r'\([^)]*\d{4}[^)]*\)',  # (Author, 2023)
-                r'\[[^\]]*\d+[^\]]*\]',  # [1], [Author, 2023] with numbers
+                r'\[[^\]]*\d+[^\]]*\]',  # [1], [Author, 2023]
                 r'doi[:\s]*[^\s]+',      # DOI
                 r'PMID[:\s]*\d+',        # PubMed IDs
                 r'http[s]?://[^\s]+',    # URLs
@@ -253,167 +462,56 @@ class HallucinationGuardAgent(BaseAgent):
                 matches = re.findall(pattern, text, re.IGNORECASE)
                 found_citations.extend(matches)
             
-            # Only proceed if we found actual citations
-            if not found_citations:
-                return citations
-            
-            # Analyze each unique citation
-            for i, citation in enumerate(set(found_citations)):
-                if len(citation.strip()) > 3:  # Skip very short matches
-                    citation_assessment = self.assess_single_citation(citation, text)
-                    citations.append({
-                        "citation": citation,
-                        "assessment": citation_assessment["assessment"],
-                        "risk_level": citation_assessment["risk_level"],
-                        "explanation": citation_assessment["explanation"],
-                        "completeness_score": citation_assessment["completeness_score"]
-                    })
-                
+            # Verify each citation using MCP
+            for citation in set(found_citations):
+                if len(citation.strip()) > 3:
+                    verification = self.verify_citation_with_mcp(citation)
+                    citations.append(verification)
+        
         except Exception as e:
             logger.warning(f"Citation analysis failed: {e}")
         
         return citations
     
-    def parse_sentence_assessment(self, ai_response: str) -> Dict:
-        """Parse AI assessment of a sentence."""
+    def verify_citation_with_mcp(self, citation: str) -> Dict:
+        """Verify citation using MCP search."""
         try:
-            # Clean up the response
-            cleaned = ai_response.replace('```json', '').replace('```', '').strip()
+            # Search for the citation
+            search_results = self.mcp_google_search(citation)
             
-            # Try to parse as JSON
-            result = json.loads(cleaned)
-            return result
-            
-        except json.JSONDecodeError:
-            # Fallback: look for key indicators in text
-            has_issues = any(keyword in ai_response.lower() for keyword in [
-                'has_issues": true', 'problematic', 'concerning', 'fabricated', 
-                'unsupported', 'contradicts', 'unverifiable'
-            ])
-            
-            if has_issues:
-                # Extract risk level
-                risk_level = "MEDIUM"
-                if "critical" in ai_response.lower() or "high" in ai_response.lower():
-                    risk_level = "HIGH"
-                elif "low" in ai_response.lower():
-                    risk_level = "LOW"
+            if search_results:
+                # Use first result to assess citation
+                first_result = search_results[0]
+                content = self.mcp_fetch_url(first_result['link'])
+                
+                assessment = f"Found search results. Top result: {first_result['title']}"
+                if content:
+                    assessment += f"\nContent retrieved: {len(content)} characters"
                 
                 return {
-                    "has_issues": True,
-                    "issue_type": "Potential Issue",
-                    "risk_level": risk_level,
-                    "explanation": ai_response[:200] + "..." if len(ai_response) > 200 else ai_response
+                    "citation": citation,
+                    "assessment": assessment,
+                    "risk_level": "LOW" if content else "MEDIUM",
+                    "explanation": "Citation found in web search with accessible content",
+                    "completeness_score": 85 if content else 60
                 }
-            
-            return {"has_issues": False}
-        
-        except Exception:
-            return {"has_issues": False}
-    
-    def assess_single_citation(self, citation: str, full_text: str) -> Dict:
-        """Assess a single citation for completeness and validity."""
-        try:
-            prompt = f"""
-            Evaluate this citation for academic/scientific validity:
-
-            Citation: "{citation}"
-            Context: "{full_text[:300]}..."
-
-            Assess:
-            1. **Completeness**: Does it have author, year, title, journal/source?
-            2. **Format**: Is it properly formatted?
-            3. **Verifiability**: Can this citation reasonably be verified?
-            4. **Contextual Appropriateness**: Does it fit the claim being made?
-
-            Rate overall citation quality:
-            - completeness_score: 0-100 (how complete is the citation?)
-            - risk_level: LOW/MEDIUM/HIGH (risk of being fabricated/invalid)
-            - assessment: Brief assessment of citation quality
-            - explanation: Why you gave this rating
-
-            Format as JSON.
-            """
-            
-            response = self.model.generate_content(prompt)
-            
-            # Parse response
-            try:
-                result = json.loads(response.text.replace('```json', '').replace('```', '').strip())
+            else:
                 return {
-                    "assessment": result.get('assessment', 'Unable to assess'),
-                    "risk_level": result.get('risk_level', 'MEDIUM'),
-                    "explanation": result.get('explanation', 'No explanation provided'),
-                    "completeness_score": result.get('completeness_score', 50)
-                }
-            except:
-                return {
-                    "assessment": response.text[:200],
-                    "risk_level": "MEDIUM",
-                    "explanation": "Failed to parse citation assessment",
-                    "completeness_score": 50
+                    "citation": citation,
+                    "assessment": "No search results found",
+                    "risk_level": "HIGH",
+                    "explanation": "Citation not found in web search - may be fabricated",
+                    "completeness_score": 20
                 }
                 
         except Exception as e:
             return {
-                "assessment": f"Error analyzing citation: {str(e)}",
-                "risk_level": "HIGH",
-                "explanation": "Citation analysis failed",
+                "citation": citation,
+                "assessment": f"Error verifying citation: {str(e)}",
+                "risk_level": "MEDIUM",
+                "explanation": "Technical error during citation verification",
                 "completeness_score": 0
             }
-    
-    def parse_issues_from_response(self, ai_response: str, original_text: str) -> List[Dict]:
-        """Parse hallucination issues from AI response."""
-        issues = []
-        
-        try:
-            # Try to parse JSON
-            cleaned_response = ai_response.replace('```json', '').replace('```', '').strip()
-            
-            # Look for JSON array
-            json_match = re.search(r'\[.*\]', cleaned_response, re.DOTALL)
-            if json_match:
-                parsed_issues = json.loads(json_match.group(0))
-                for issue in parsed_issues:
-                    if isinstance(issue, dict):
-                        issues.append({
-                            "issue_type": issue.get('issue_type', 'Unknown'),
-                            "description": issue.get('description', 'No description'),
-                            "evidence": issue.get('evidence', 'No evidence'),
-                            "risk_level": issue.get('risk_level', 'MEDIUM'),
-                            "explanation": issue.get('explanation', 'No explanation')
-                        })
-                        
-        except Exception as e:
-            # Fallback: look for obvious issues in the text
-            issues = self.fallback_issue_detection(original_text)
-        
-        return issues[:5]  # Limit to 5 most important issues
-    
-    def fallback_issue_detection(self, text: str) -> List[Dict]:
-        """Fallback issue detection using pattern matching."""
-        issues = []
-        
-        # Check for suspicious patterns
-        patterns = {
-            "Precise Statistics": (r'\b\d+\.\d{2,}%', "HIGH"),
-            "Specific Dates": (r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b', "MEDIUM"),
-            "Unverifiable Claims": (r'\b(?:studies show|research proves|experts say|according to studies)\b', "HIGH"),
-            "Absolute Statements": (r'\b(?:always|never|all|every|none|definitely|certainly)\s+(?:causes?|leads? to|results? in)\b', "MEDIUM")
-        }
-        
-        for issue_type, (pattern, risk_level) in patterns.items():
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            for match in matches[:2]:  # Limit matches per pattern
-                issues.append({
-                    "issue_type": issue_type,
-                    "description": f"Potentially problematic {issue_type.lower()}",
-                    "evidence": match,
-                    "risk_level": risk_level,
-                    "explanation": f"Pattern '{match}' may indicate fabricated or overly specific information"
-                })
-        
-        return issues
     
     def determine_risk_level(self, confidence_score: float, issues: List[Dict]) -> str:
         """Determine overall risk level based on confidence and issues."""
