@@ -428,7 +428,7 @@ export default function Index() {
               <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                 <div className="flex items-start gap-4">
                   <img
-                    src="/logo.svg"
+                    src="/medguard_logo.png"
                     alt="HealthGuard AI logo"
                     className="h-16 w-16 rounded-2xl shadow-glow ring-1 ring-primary/20"
                   />
